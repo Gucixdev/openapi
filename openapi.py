@@ -31,7 +31,9 @@ import logging
 import openai
 import typer
 from adapters import ADAPTERS
+import coderabbit as coderabbit_api
 import integrations
+import notion
 import wizard
 from mcp.server.mcpserver import MCPServer
 
@@ -512,25 +514,25 @@ def obsidian_write(path: str, text: str, append: bool = False) -> str:
 @mcp.tool()
 async def notion_search(query: str, limit: int = 20) -> str:
     """Search Notion pages and databases shared with the integration (NOTION_API_KEY)."""
-    return await integrations.notion_search(query, limit)
+    return await notion.notion_search(query, limit)
 
 
 @mcp.tool()
 async def notion_read(page_id: str) -> str:
     """Read the text blocks of a Notion page."""
-    return await integrations.notion_read(page_id)
+    return await notion.notion_read(page_id)
 
 
 @mcp.tool()
 async def notion_create(parent_page_id: str, title: str, text: str = "") -> str:
     """Create a Notion page under a parent page; paragraphs split on blank lines."""
-    return await integrations.notion_create(parent_page_id, title, text)
+    return await notion.notion_create(parent_page_id, title, text)
 
 
 @mcp.tool()
 async def coderabbit(path: str = "/v1/users") -> str:
     """Read-only GET against the CodeRabbit API (optional, CODERABBIT_API_KEY)."""
-    return await integrations.coderabbit_get(path)
+    return await coderabbit_api.coderabbit_get(path)
 
 
 @mcp.tool()

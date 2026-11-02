@@ -28,6 +28,6 @@ Tests: `.venv/bin/python -m pytest -q` (fake clients and a local HTTP server sta
 ## Notes integrations and setup (all optional)
 
 - Obsidian: set `OBSIDIAN_VAULT` to a vault folder -> tools `obsidian_search`, `obsidian_read`, `obsidian_write` (paths cannot leave the vault).
-- Notion: `NOTION_API_KEY` (internal integration token) -> `notion_search`, `notion_read`, `notion_create`.
-- CodeRabbit: `CODERABBIT_API_KEY` -> read-only `coderabbit` tool for its admin API (not an LLM).
+- Notion (`notion.py`): `NOTION_API_KEY` (internal integration token) -> `notion_search`, `notion_read`, `notion_create`.
+- CodeRabbit (`coderabbit.py`): `CODERABBIT_API_KEY` -> read-only `coderabbit` tool for its admin API (not an LLM).
 - `./openapi.py init` runs `wizard.py`: one hidden prompt per key with its signup link; Enter skips. Keys go to `~/.config/openapi/keys.env`, never into the repo.
