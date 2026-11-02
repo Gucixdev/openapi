@@ -16,7 +16,7 @@ async def main() -> int:
             for name, args in (("status", {}), ("obsidian_read", {"path": "x"}), ("notion_search", {"query": "x"}), ("coderabbit", {})):
                 res = await s.call_tool(name, args)
                 print(f"--- {name}\n" + "".join(c.text for c in res.content if hasattr(c, "text")))
-            return 0 if sorted(tools) == sorted(["ask", "council", "list_models", "stats", "status", "obsidian_search", "obsidian_read", "obsidian_write", "notion_search", "notion_read", "notion_create", "coderabbit"]) else 1
+            return 0 if sorted(tools) == sorted(["ask", "council", "list_models", "stats", "status", "obsidian_search", "obsidian_read", "obsidian_write", "notion_search", "notion_read", "notion_create", "coderabbit", "image", "jev"]) else 1
 
 
 sys.exit(asyncio.run(main()))

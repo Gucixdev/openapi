@@ -31,3 +31,5 @@ Tests: `.venv/bin/python -m pytest -q` (fake clients and a local HTTP server sta
 - Notion (`notion.py`): `NOTION_API_KEY` (internal integration token) -> `notion_search`, `notion_read`, `notion_create`.
 - CodeRabbit (`coderabbit.py`): `CODERABBIT_API_KEY` -> read-only `coderabbit` tool for its admin API (not an LLM).
 - `./openapi.py init` runs `wizard.py`: one hidden prompt per key with its signup link; Enter skips. Keys go to `~/.config/openapi/keys.env`, never into the repo.
+- Images (`images.py`, tool `image`): uses the first of TOGETHER / OPENAI / NEBIUS / FIREWORKS keys that is set (OpenAI-style `/images/generations`), else keyless Pollinations, which is flaky (402/503 on some prompts). Files go to `~/Pictures/openapi` (`IMAGE_DIR` overrides).
+- Jev (`jev.py`, tool `jev`): TypeSafe AI System One, typed noul/choice/score answers, `TYPESAFE_API_KEY`. Request shape from the docs quickstart, never run against the live API.

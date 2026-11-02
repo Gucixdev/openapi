@@ -32,7 +32,9 @@ import openai
 import typer
 from adapters import ADAPTERS
 import coderabbit as coderabbit_api
+import images
 import integrations
+import jev as jev_api
 import notion
 import wizard
 from mcp.server.mcpserver import MCPServer
@@ -631,6 +633,18 @@ async def notion_create(parent_page_id: str, title: str, text: str = "") -> str:
 async def coderabbit(path: str = "/v1/users") -> str:
     """Read-only GET against the CodeRabbit API (optional, CODERABBIT_API_KEY)."""
     return await coderabbit_api.coderabbit_get(path)
+
+
+@mcp.tool()
+async def image(prompt: str, width: int = 1024, height: int = 1024) -> str:
+    """Generate a picture: a keyed provider (Together FLUX, OpenAI, ...) if one is set, else keyless Pollinations. Returns the file path."""
+    return await images.image(prompt, width, height)
+
+
+@mcp.tool()
+async def jev(state: str, questions: dict, model: str = "jev-latest") -> str:
+    """Ask Jev (TypeSafe System One, TYPESAFE_API_KEY) typed questions about a text: noul (yes/no), choice, score; returns calibrated probabilities."""
+    return await jev_api.jev(state, questions, model)
 
 
 @mcp.tool()
