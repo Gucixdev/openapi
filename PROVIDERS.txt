@@ -1,0 +1,221 @@
+OPENAPI - providers, keys, other routers
+generated from openapi.py (PROVIDERS) + ./openapi.py stats, 2026-11-02
+
+== 1. working models right now ==
+usable (key set, provider answers): 0   - no key is configured yet
+listed without a key (public catalogs): 7923 models at 36 providers
+a public catalog is not access: every call still needs a key.
+
+== 2. providers in openapi.py (all OpenAI-compatible, one key each) ==
+name         env var              catalog w/o key  base_url / signup
+ollama       (none)                             6  http://localhost:11434/v1
+                                                   signup: local: install ollama and pull a model, nothing to sign up for
+pollinations (none)                             1  https://text.pollinations.ai/openai
+                                                   signup: no login (anonymous tier, rate limited)
+groq         GROQ_API_KEY                      11  https://api.groq.com/openai/v1
+                                                   signup: https://console.groq.com/keys
+cerebras     CEREBRAS_API_KEY                   0  https://api.cerebras.ai/v1
+                                                   signup: https://cloud.cerebras.ai
+gemini       GEMINI_API_KEY                     0  https://generativelanguage.googleapis.com/v1beta/openai/
+                                                   signup: https://aistudio.google.com/apikey
+mistral      MISTRAL_API_KEY                    0  https://api.mistral.ai/v1
+                                                   signup: https://console.mistral.ai/api-keys
+nvidia       NVIDIA_API_KEY                    85  https://integrate.api.nvidia.com/v1
+                                                   signup: https://build.nvidia.com
+openrouter   OPENROUTER_API_KEY               416  https://openrouter.ai/api/v1
+                                                   signup: https://openrouter.ai/keys  [free ids only: :free]
+sambanova    SAMBANOVA_API_KEY                  6  https://api.sambanova.ai/v1
+                                                   signup: https://cloud.sambanova.ai/apis
+huggingface  HF_TOKEN                         135  https://router.huggingface.co/v1
+                                                   signup: https://huggingface.co/settings/tokens
+github       GITHUB_TOKEN                       0  https://models.github.ai/inference
+                                                   signup: https://github.com/marketplace/models  (may be closed to new users)
+siliconflow  SILICONFLOW_API_KEY                0  https://api.siliconflow.com/v1
+                                                   signup: https://cloud.siliconflow.com
+zai          ZAI_API_KEY                        0  https://open.bigmodel.cn/api/paas/v4
+                                                   signup: https://z.ai/manage-apikey/apikey-list
+cohere       COHERE_API_KEY                    37  https://api.cohere.ai/compatibility/v1
+                                                   signup: https://dashboard.cohere.com/api-keys
+together     TOGETHER_API_KEY                   0  https://api.together.xyz/v1
+                                                   signup: https://api.together.ai/settings/api-keys
+fireworks    FIREWORKS_API_KEY                  0  https://api.fireworks.ai/inference/v1
+                                                   signup: https://fireworks.ai/account/api-keys
+hyperbolic   HYPERBOLIC_API_KEY                 0  https://api.hyperbolic.xyz/v1
+                                                   signup: https://app.hyperbolic.xyz/settings
+novita       NOVITA_API_KEY                    98  https://api.novita.ai/v3/openai
+                                                   signup: https://novita.ai/settings/key-management
+deepinfra    DEEPINFRA_API_KEY                  0  https://api.deepinfra.com/v1/openai
+                                                   signup: https://deepinfra.com/dash/api_keys
+nebius       NEBIUS_API_KEY                     0  https://api.studio.nebius.com/v1
+                                                   signup: https://studio.nebius.com/settings/api-keys
+scaleway     SCW_SECRET_KEY                     0  https://api.scaleway.ai/v1
+                                                   signup: https://console.scaleway.com/iam/api-keys
+chutes       CHUTES_API_KEY                     0  https://llm.chutes.ai/v1
+                                                   signup: https://chutes.ai
+featherless  FEATHERLESS_API_KEY                0  https://api.featherless.ai/v1
+                                                   signup: https://featherless.ai/account/api-keys
+venice       VENICE_API_KEY                   140  https://api.venice.ai/api/v1
+                                                   signup: https://venice.ai/settings/api
+aimlapi      AIMLAPI_KEY                      951  https://api.aimlapi.com/v1
+                                                   signup: https://aimlapi.com/app/keys
+baseten      BASETEN_API_KEY                    0  https://inference.baseten.co/v1
+                                                   signup: https://app.baseten.co/settings/api_keys
+dashscope    DASHSCOPE_API_KEY                  0  https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+                                                   signup: https://bailian.console.alibabacloud.com
+moonshot     MOONSHOT_API_KEY                   0  https://api.moonshot.ai/v1
+                                                   signup: https://platform.moonshot.ai/console/api-keys
+deepseek     DEEPSEEK_API_KEY                   0  https://api.deepseek.com/v1
+                                                   signup: https://platform.deepseek.com/api_keys
+xai          XAI_API_KEY                        0  https://api.x.ai/v1
+                                                   signup: https://console.x.ai
+ovh          (none)                            22  https://oai.endpoints.kepler.ai.cloud.ovh.net/v1
+                                                   signup: no login: 2 req/min per IP per model; a key (ovhcloud.com/en/public-cloud/ai-endpoints) lifts it
+kilo         (none)                           384  https://api.kilo.ai/api/gateway
+                                                   signup: no login: ~200 req/hour per IP on free models; key at https://app.kilo.ai/profile
+llm7         (none)                            70  https://api.llm7.io/v1
+                                                   signup: no login (turbo models); token at https://token.llm7.io lifts limits
+airforce     (none)                           793  https://api.airforce/v1
+                                                   signup: no login; free tier, often in outage
+lmstudio     (none)                             0  http://localhost:1234/v1
+                                                   signup: local: LM Studio -> Developer -> start server
+llamacpp     (none)                             0  http://localhost:8080/v1
+                                                   signup: local: llama-server -m model.gguf  (also llamafile, LocalAI)
+jan          (none)                             0  http://localhost:1337/v1
+                                                   signup: local: Jan -> Settings -> Local API Server
+vllm         (none)                             0  http://localhost:8000/v1
+                                                   signup: local: vllm serve <model>
+requesty     REQUESTY_API_KEY                 809  https://router.requesty.ai/v1
+                                                   signup: https://app.requesty.ai (200 req/day on zero-priced models, no card)
+kilo_key     KILO_API_KEY                     384  https://api.kilo.ai/api/gateway
+                                                   signup: https://app.kilo.ai/profile
+llm7_key     LLM7_API_KEY                      70  https://api.llm7.io/v1
+                                                   signup: https://token.llm7.io (higher limits than anonymous)
+aion         AION_API_KEY                       6  https://api.aionlabs.ai/v1
+                                                   signup: https://www.aionlabs.ai/app/api-keys/ (20K tokens/day, no card)
+ollama_cloud OLLAMA_API_KEY                    25  https://ollama.com/v1
+                                                   signup: https://ollama.com/settings/keys
+modelscope   MODELSCOPE_API_KEY                37  https://api-inference.modelscope.cn/v1
+                                                   signup: https://modelscope.cn/my/myaccesstoken (needs Alibaba Cloud binding + real-name check)
+gonka        GONKA_API_KEY                      4  https://proxy.gonkabroker.com/v1
+                                                   signup: https://app.gonkabroker.com/signup (SMS verification, ~1M tokens/month)
+inferencenet INFERENCE_API_KEY                  0  https://api.inference.net/v1
+                                                   signup: https://inference.net
+vercel       AI_GATEWAY_API_KEY                 0  https://ai-gateway.vercel.sh/v1
+                                                   signup: https://vercel.com/ai-gateway
+opencode     OPENCODE_API_KEY                   0  https://opencode.ai/zen/v1
+                                                   signup: https://opencode.ai/zen (free models have a shared limit)
+perplexity   PERPLEXITY_API_KEY                 4  https://api.perplexity.ai
+                                                   signup: https://www.perplexity.ai/settings/api (paid credits)
+parasail     PARASAIL_API_KEY                   0  https://api.parasail.io/v1
+                                                   signup: https://www.saas.parasail.io/keys
+upstage      UPSTAGE_API_KEY                    0  https://api.upstage.ai/v1
+                                                   signup: https://console.upstage.ai/api-keys (free credits on signup)
+reka         REKA_API_KEY                       0  https://api.reka.ai/v1
+                                                   signup: https://platform.reka.ai/apikeys
+sarvam       SARVAM_API_KEY                     2  https://api.sarvam.ai/v1
+                                                   signup: https://dashboard.sarvam.ai
+ai21         AI21_API_KEY                       0  https://api.ai21.com/studio/v1
+                                                   signup: https://studio.ai21.com/account/api-key (trial credit)
+nscale       NSCALE_API_KEY                     0  https://inference.api.nscale.com/v1
+                                                   signup: https://console.nscale.com
+friendli     FRIENDLI_TOKEN                     5  https://api.friendli.ai/serverless/v1
+                                                   signup: https://friendli.ai/suite/~/personal-settings/tokens
+llmgateway   LLMGATEWAY_API_KEY                 0  https://api.llmgateway.io/v1
+                                                   signup: https://llmgateway.io/dashboard
+minimax      MINIMAX_API_KEY                    0  https://api.minimax.io/v1
+                                                   signup: https://platform.minimax.io
+stepfun      STEPFUN_API_KEY                    0  https://api.stepfun.com/v1
+                                                   signup: https://platform.stepfun.com
+volcengine   ARK_API_KEY                        0  https://ark.cn-beijing.volces.com/api/v3
+                                                   signup: https://console.volcengine.com/ark
+hunyuan      HUNYUAN_API_KEY                    0  https://api.hunyuan.cloud.tencent.com/v1
+                                                   signup: https://console.cloud.tencent.com/hunyuan/api-key
+arliai       ARLIAI_API_KEY                     0  https://api.arliai.com/v1
+                                                   signup: https://www.arliai.com/account
+nanogpt      NANOGPT_API_KEY                  663  https://api.nano-gpt.com/v1
+                                                   signup: https://nano-gpt.com/api
+ppq          PPQ_API_KEY                      384  https://api.ppq.ai/v1
+                                                   signup: https://ppq.ai/api-docs
+writer       WRITER_API_KEY                     0  https://api.writer.com/v1
+                                                   signup: https://app.writer.com/aistudio
+publicai     PUBLICAI_API_KEY                   0  https://api.publicai.co/v1
+                                                   signup: https://platform.publicai.co
+neuralwatt   NEURALWATT_API_KEY                 0  https://api.neuralwatt.com/v1
+                                                   signup: https://portal.neuralwatt.com
+gmi          GMI_API_KEY                        0  https://api.gmi-serving.com/v1
+                                                   signup: https://console.gmicloud.ai
+cortecs      CORTECS_API_KEY                  108  https://api.cortecs.ai/v1
+                                                   signup: https://cortecs.ai
+inception    INCEPTION_API_KEY                  4  https://api.inceptionlabs.ai/v1
+                                                   signup: https://platform.inceptionlabs.ai
+recursal     RECURSAL_API_KEY                   0  https://api.recursal.com/v1
+                                                   signup: https://recursal.ai
+llama_api    LLAMA_API_KEY                      0  https://api.llama.com/compat/v1
+                                                   signup: https://llama.developer.meta.com
+baichuan     BAICHUAN_API_KEY                   0  https://api.baichuan-ai.com/v1
+                                                   signup: https://platform.baichuan-ai.com
+avian        AVIAN_API_KEY                     19  https://api.avian.io/v1
+                                                   signup: https://avian.io
+lemonfox     LEMONFOX_API_KEY                   0  https://api.lemonfox.ai/v1
+                                                   signup: https://www.lemonfox.ai
+electronhub  ELECTRONHUB_API_KEY              619  https://api.electronhub.ai/v1
+                                                   signup: https://electronhub.ai
+navy         NAVY_API_KEY                     132  https://api.navy/v1
+                                                   signup: https://api.navy
+naga         NAGA_API_KEY                       0  https://api.naga.ac/v1
+                                                   signup: https://naga.ac
+mimo         MIMO_API_KEY                       0  https://api.xiaomimimo.com/v1
+                                                   signup: https://platform.xiaomimimo.com
+berget       BERGET_API_KEY                    14  https://api.berget.ai/v1
+                                                   signup: https://berget.ai
+fuelix       FUELIX_API_KEY                     0  https://api.fuelix.ai/v1
+                                                   signup: https://fuelix.ai
+ai302        AI302_API_KEY                      0  https://api.302.ai/v1
+                                                   signup: https://302.ai
+chatanywhere CHATANYWHERE_API_KEY               0  https://api.chatanywhere.tech/v1
+                                                   signup: https://github.com/chatanywhere/GPT_API_free
+zhizengzeng  ZHIZENGZENG_API_KEY              889  https://api.zhizengzeng.com/v1
+                                                   signup: https://zhizengzeng.com
+atlascloud   ATLASCLOUD_API_KEY               126  https://api.atlascloud.ai/v1
+                                                   signup: https://www.atlascloud.ai
+ionet        IOINTELLIGENCE_API_KEY               0  https://api.intelligence.io.solutions/api/v1
+                                                   signup: https://ai.io.net
+vsegpt       VSEGPT_API_KEY                   464  https://api.vsegpt.ru/v1
+                                                   signup: https://vsegpt.ru
+portkey      PORTKEY_API_KEY                    0  https://api.portkey.ai/v1
+                                                   signup: https://app.portkey.ai
+anthropic    ANTHROPIC_API_KEY                  0  https://api.anthropic.com/v1
+                                                   signup: https://console.anthropic.com/settings/keys (paid; a Claude subscription is not an API key)
+cloudflare   CLOUDFLARE_API_TOKEN               0  https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai
+                                                   signup: https://dash.cloudflare.com/profile/api-tokens (also set CLOUDFLARE_ACCOUNT_ID; 10k neurons/day free)
+openai       OPENAI_API_KEY                     0  https://api.openai.com/v1
+                                                   signup: https://platform.openai.com/api-keys (paid)
+
+== 3. keys: ~/.config/openapi/keys.env (mode 600) - see keys.env.example ==
+fast way: ./openapi.py init   (hidden prompt per provider, Enter skips)
+one key:  ./openapi.py add NAME [KEY]
+
+== 4. routing rules (implemented) ==
+429 -> provider rests retry-after (default 60 s), next provider/model at once
+connection error / 5xx -> provider rests 30 s
+rejected key (401/403) -> provider dead for the session
+model listed but refused (404/400/403/422) -> remembered bad, next ranked model (3 tries)
+explicit 'provider/model' never fails over to another provider
+
+== 5. what the other projects use (from web research, NOT checked by me) ==
+freellmapi (github.com/tashfeenahmed/freellmapi, MIT): 34 providers, one OpenAI endpoint + MCP at /mcp, BYOK, self-hosted :3001
+alienz-dev/llm-router, vipulgote1999/free-llm-router (Cloudflare Worker), Pr0fess0rOP/free-llm-router, harivilasp/freellm
+LiteLLM (library/proxy, 100+ providers, fallbacks + budgets), FreeRouter (PyPI, LiteLLM config wrapper)
+OpenRouter: one key, ':free' models, rate limited
+access they all use: provider API key from the provider's own dashboard (BYOK) - no login tricks; reseller proxies advised against
+free tiers named: OpenRouter, Groq, Cerebras, Gemini, Mistral. GitHub Models reportedly closed to new users (unverified).
+limits per provider change often - check each signup page, none are recorded here.
+
+== 6. GLM / DeepSeek / Kimi: where each is listed (checked 2026-11-02 against live catalogs) ==
+tested working: llm7_key/DeepSeek-V4-Flash-0731 (turbo tier, answered). Not working for us: llm7 GLM-5.3-Flash (503 / rate limited),
+  llm7 and ollama_cloud 'pro' models (deepseek-v4-pro, glm-5.2/5.3, kimi-k2.6/k3): HTTP 402 = needs credit/subscription; airforce: HTTP 402.
+GLM:      llm7 (GLM-5.3-Flash turbo), nvidia (z-ai/glm-5.3-flash), z.ai own key (glm flash free), modelscope, huggingface, novita, kilo, requesty, venice, aimlapi
+DeepSeek: llm7 (DeepSeek-V4-Flash-0731), nvidia (deepseek-v4.1-flash), sambanova, modelscope, huggingface, novita, kilo, requesty, deepseek own key (paid, cheap)
+Kimi:     nvidia (moonshotai/kimi-k2.6), huggingface router, novita, modelscope(?), moonshot own key (paid), llm7/ollama_cloud pro only
+Research: perplexity (sonar-deep-research; paid credits); deepseek-r1 / reasoning models via nvidia, huggingface, openrouter ':free' when listed
+Keys still missing for the free ones: NVIDIA_API_KEY, ZAI_API_KEY, HF_TOKEN, SAMBANOVA_API_KEY, MODELSCOPE_API_KEY (need login).
