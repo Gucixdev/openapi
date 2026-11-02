@@ -3,7 +3,7 @@ generated from openapi.py (PROVIDERS) + ./openapi.py stats, 2026-11-02
 
 == 1. working models right now ==
 usable (key set, provider answers): 0   - no key is configured yet
-listed without a key (public catalogs): 7923 models at 36 providers
+listed without a key (public catalogs): 9699 models at 45 providers
 a public catalog is not access: every call still needs a key.
 
 == 2. providers in openapi.py (all OpenAI-compatible, one key each) ==
@@ -26,7 +26,7 @@ openrouter   OPENROUTER_API_KEY               416  https://openrouter.ai/api/v1
                                                    signup: https://openrouter.ai/keys  [free ids only: :free]
 sambanova    SAMBANOVA_API_KEY                  6  https://api.sambanova.ai/v1
                                                    signup: https://cloud.sambanova.ai/apis
-huggingface  HF_TOKEN                         135  https://router.huggingface.co/v1
+huggingface  HF_TOKEN                         134  https://router.huggingface.co/v1
                                                    signup: https://huggingface.co/settings/tokens
 github       GITHUB_TOKEN                       0  https://models.github.ai/inference
                                                    signup: https://github.com/marketplace/models  (may be closed to new users)
@@ -150,6 +150,70 @@ inception    INCEPTION_API_KEY                  4  https://api.inceptionlabs.ai/
                                                    signup: https://platform.inceptionlabs.ai
 recursal     RECURSAL_API_KEY                   0  https://api.recursal.com/v1
                                                    signup: https://recursal.ai
+deepbricks   DEEPBRICKS_API_KEY                 0  https://api.deepbricks.ai/v1
+                                                   signup: https://deepbricks.ai
+siray        SIRAY_API_KEY                      0  https://api.siray.ai/v1
+                                                   signup: https://siray.ai
+nebius_tf    NEBIUS_TF_API_KEY                  0  https://api.tokenfactory.nebius.com/v1
+                                                   signup: https://tokenfactory.nebius.com
+spark        SPARK_API_KEY                      0  https://spark-api-open.xf-yun.com/v1
+                                                   signup: https://console.xfyun.cn
+tencent_cloud LKEAP_API_KEY                      0  https://api.lkeap.cloud.tencent.com/v1
+                                                   signup: https://cloud.tencent.com
+moonshot_cn  MOONSHOT_CN_API_KEY                0  https://api.moonshot.cn/v1
+                                                   signup: https://platform.moonshot.cn
+siliconflow_cn SILICONFLOW_CN_API_KEY               0  https://api.siliconflow.cn/v1
+                                                   signup: https://cloud.siliconflow.cn
+dashscope_cn DASHSCOPE_CN_API_KEY               0  https://dashscope.aliyuncs.com/compatible-mode/v1
+                                                   signup: https://bailian.console.aliyun.com
+tokenflux    TOKENFLUX_API_KEY                  0  https://tokenflux.ai/v1
+                                                   signup: https://tokenflux.ai
+poe          POE_API_KEY                      301  https://api.poe.com/v1
+                                                   signup: https://poe.com/api_key
+zenmux       ZENMUX_API_KEY                   212  https://zenmux.ai/api/v1
+                                                   signup: https://zenmux.ai
+novita_ai    NOVITA_OAI_API_KEY                98  https://api.novita.ai/openai/v1
+                                                   signup: https://novita.ai
+ppio         PPIO_API_KEY                      66  https://api.ppinfra.com/v3/openai
+                                                   signup: https://ppio.com
+infini       INFINI_API_KEY                     0  https://cloud.infini-ai.com/maas/v1
+                                                   signup: https://cloud.infini-ai.com
+mancer       MANCER_API_KEY                    12  https://neuro.mancer.tech/oai/v1
+                                                   signup: https://mancer.tech
+infermatic   INFERMATIC_API_KEY                 0  https://api.totalgpt.ai/v1
+                                                   signup: https://infermatic.ai
+zuki         ZUKI_API_KEY                       0  https://api.zukijourney.com/v1
+                                                   signup: https://zukijourney.com
+helixmind    HELIXMIND_API_KEY                  0  https://api.helixmind.online/v1
+                                                   signup: https://helixmind.online
+glama        GLAMA_API_KEY                      0  https://glama.ai/api/gateway/openai/v1
+                                                   signup: https://glama.ai
+helicone     HELICONE_API_KEY                   0  https://oai.helicone.ai/v1
+                                                   signup: https://helicone.ai
+edenai       EDENAI_API_KEY                     0  https://api.edenai.run/v2/llm
+                                                   signup: https://app.edenai.run
+cometapi     COMETAPI_API_KEY                   0  https://api.cometapi.com/v1
+                                                   signup: https://cometapi.com
+aihubmix     AIHUBMIX_API_KEY                 660  https://aihubmix.com/v1
+                                                   signup: https://aihubmix.com
+burncloud    BURNCLOUD_API_KEY                  0  https://ai.burncloud.com/v1
+                                                   signup: https://burncloud.com
+api2d        API2D_API_KEY                    129  https://openai.api2d.net/v1
+                                                   signup: https://api2d.com
+ohmygpt      OHMYGPT_API_KEY                  269  https://api.ohmygpt.com/v1
+                                                   signup: https://www.ohmygpt.com
+nextapi      NEXTAPI_API_KEY                    0  https://api.nextapi.fun/v1
+                                                   signup: https://nextapi.fun
+yunwu        YUNWU_API_KEY                      0  https://yunwu.ai/v1
+                                                   signup: https://yunwu.ai
+jina         JINA_API_KEY                      30  https://api.jina.ai/v1
+                                                   signup: https://jina.ai
+do_inference DO_INFERENCE_KEY                   0  https://inference.do-ai.run/v1
+                                                   signup: https://cloud.digitalocean.com/gen-ai
+centml       CENTML_API_KEY                     0  https://api.centml.com/openai/v1
+                                                   signup: https://app.centml.com
+replicate    REPLICATE_API_TOKEN                0  https://api.replicate.com/v1
+                                                   signup: https://replicate.com
 llama_api    LLAMA_API_KEY                      0  https://api.llama.com/compat/v1
                                                    signup: https://llama.developer.meta.com
 baichuan     BAICHUAN_API_KEY                   0  https://api.baichuan-ai.com/v1
