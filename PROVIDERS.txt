@@ -3,7 +3,7 @@ generated from openapi.py (PROVIDERS) + ./openapi.py stats, 2026-11-02
 
 == 1. working models right now ==
 usable (key set, provider answers): 0   - no key is configured yet
-listed without a key (public catalogs): 9699 models at 45 providers
+listed without a key (public catalogs): 9719 models at 46 providers
 a public catalog is not access: every call still needs a key.
 
 == 2. providers in openapi.py (all OpenAI-compatible, one key each) ==
@@ -26,7 +26,7 @@ openrouter   OPENROUTER_API_KEY               416  https://openrouter.ai/api/v1
                                                    signup: https://openrouter.ai/keys  [free ids only: :free]
 sambanova    SAMBANOVA_API_KEY                  6  https://api.sambanova.ai/v1
                                                    signup: https://cloud.sambanova.ai/apis
-huggingface  HF_TOKEN                         134  https://router.huggingface.co/v1
+huggingface  HF_TOKEN                         135  https://router.huggingface.co/v1
                                                    signup: https://huggingface.co/settings/tokens
 github       GITHUB_TOKEN                       0  https://models.github.ai/inference
                                                    signup: https://github.com/marketplace/models  (may be closed to new users)
@@ -150,6 +150,138 @@ inception    INCEPTION_API_KEY                  4  https://api.inceptionlabs.ai/
                                                    signup: https://platform.inceptionlabs.ai
 recursal     RECURSAL_API_KEY                   0  https://api.recursal.com/v1
                                                    signup: https://recursal.ai
+crofai       CROFAI_API_KEY                     0  https://ai.nahcrof.com/v2
+                                                   signup: https://ai.nahcrof.com
+lambda       LAMBDA_API_KEY                     0  https://api.lambda.ai/v1
+                                                   signup: https://cloud.lambda.ai
+kluster      KLUSTER_API_KEY                    0  https://api.kluster.ai/v1
+                                                   signup: https://platform.kluster.ai
+sensenova    SENSENOVA_API_KEY                  0  https://api.sensenova.cn/compatible-mode/v1
+                                                   signup: https://platform.sensenova.cn
+qianfan      QIANFAN_API_KEY                    0  https://qianfan.baidubce.com/v2
+                                                   signup: https://console.bce.baidu.com/qianfan
+yi           YI_API_KEY                         0  https://api.lingyiwanwu.com/v1
+                                                   signup: https://platform.lingyiwanwu.com
+modelhub     MODELHUB_API_KEY                   0  https://api.modelhub.ai/v1
+                                                   signup: https://modelhub.ai
+akash        AKASH_API_KEY                      0  https://chatapi.akash.network/api/v1
+                                                   signup: https://chat.akash.network
+openpipe     OPENPIPE_API_KEY                   0  https://app.openpipe.ai/api/v1
+                                                   signup: https://app.openpipe.ai
+predibase    PREDIBASE_API_KEY                  0  https://serving.app.predibase.com/v1
+                                                   signup: https://app.predibase.com
+anyscale     ANYSCALE_API_KEY                   0  https://api.endpoints.anyscale.com/v1
+                                                   signup: https://console.anyscale.com
+octoai       OCTOAI_API_KEY                     0  https://text.octoai.run/v1
+                                                   signup: https://octo.ai
+lepton       LEPTON_API_KEY                     0  https://api.lepton.ai/api/v1
+                                                   signup: https://dashboard.lepton.ai
+glhf         GLHF_API_KEY                       0  https://glhf.chat/api/openai/v1
+                                                   signup: https://glhf.chat
+shuttle      SHUTTLE_API_KEY                    0  https://api.shuttleai.com/v1
+                                                   signup: https://shuttleai.com
+pawan        PAWAN_API_KEY                      0  https://api.pawan.krd/v1
+                                                   signup: https://pawan.krd
+sreeshop     SREE_API_KEY                       0  https://api.sree.shop/v1
+                                                   signup: https://sree.shop
+unify        UNIFY_API_KEY                      0  https://api.unify.ai/v0
+                                                   signup: https://console.unify.ai
+martian      MARTIAN_API_KEY                    0  https://withmartian.com/api/openai/v1
+                                                   signup: https://withmartian.com
+litellm_proxy LITELLM_API_KEY                    0  https://api.litellm.ai/v1
+                                                   signup: https://litellm.ai
+openai_hk    OPENAIHK_API_KEY                   0  https://api.openai-hk.com/v1
+                                                   signup: https://openai-hk.com
+gptapi_us    GPTAPIUS_API_KEY                   0  https://api.gptapi.us/v1
+                                                   signup: https://gptapi.us
+duckcoding   DUCKCODING_API_KEY                 0  https://jp.duckcoding.com/v1
+                                                   signup: https://duckcoding.com
+siliconcloud_gateway XIAOAI_API_KEY                     0  https://api.xiaoai.plus/v1
+                                                   signup: https://xiaoai.plus
+moda         MISTRAL_FIM_KEY                    0  https://api.mistral.ai/v1/fim
+                                                   signup: https://console.mistral.ai
+codestral    CODESTRAL_API_KEY                  0  https://codestral.mistral.ai/v1
+                                                   signup: https://console.mistral.ai/codestral
+voyage       VOYAGE_API_KEY                     0  https://api.voyageai.com/v1
+                                                   signup: https://dash.voyageai.com
+nomic        NOMIC_API_KEY                      0  https://api-atlas.nomic.ai/v1
+                                                   signup: https://atlas.nomic.ai
+lm_proxy     LMPROXY_API_KEY                    0  https://api.lm-proxy.com/v1
+                                                   signup: https://lm-proxy.com
+tune         TUNE_API_KEY                       0  https://proxy.tune.app/v1
+                                                   signup: https://studio.tune.app
+monster      MONSTER_API_KEY                    0  https://llm.monsterapi.ai/v1
+                                                   signup: https://monsterapi.ai
+nlpcloud     NLPCLOUD_API_KEY                   0  https://api.nlpcloud.io/v1
+                                                   signup: https://nlpcloud.com
+gradient     DO_API_KEY                         0  https://api.digitalocean.com/v1
+                                                   signup: https://cloud.digitalocean.com
+crusoe       CRUSOE_API_KEY                     0  https://api.crusoe.ai/v1
+                                                   signup: https://crusoe.ai
+runpod       RUNPOD_API_KEY                     0  https://api.runpod.ai/v2
+                                                   signup: https://runpod.io
+neets        NEETS_API_KEY                      0  https://api.neets.ai/v1
+                                                   signup: https://neets.ai
+koboldcpp    (none)                             0  http://localhost:5001/v1
+                                                   signup: https://github.com/LostRuins/koboldcpp
+tabbyapi     (none)                             0  http://localhost:5000/v1
+                                                   signup: https://github.com/theroyallab/tabbyAPI
+sglang       (none)                             0  http://localhost:30000/v1
+                                                   signup: https://github.com/sgl-project/sglang
+gpt4all      (none)                             0  http://localhost:4891/v1
+                                                   signup: https://gpt4all.io
+msty         (none)                             0  http://localhost:10000/v1
+                                                   signup: https://msty.app
+lemonade     (none)                             0  http://localhost:8000/api/v1
+                                                   signup: https://lemonade-server.ai
+docker_mr    (none)                             0  http://localhost:12434/engines/v1
+                                                   signup: https://docs.docker.com/ai/model-runner
+anthropic_vertex VERTEX_API_KEY                     0  https://us-east5-aiplatform.googleapis.com/v1
+                                                   signup: https://console.cloud.google.com/vertex-ai
+azure_openai AZURE_OPENAI_API_KEY               0  https://YOUR-RESOURCE.openai.azure.com/openai/v1
+                                                   signup: https://portal.azure.com
+bedrock      AWS_BEARER_TOKEN_BEDROCK               0  https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1
+                                                   signup: https://console.aws.amazon.com/bedrock
+watsonx      WATSONX_API_KEY                   19  https://us-south.ml.cloud.ibm.com/ml/v1
+                                                   signup: https://cloud.ibm.com/watsonx
+oracle_genai OCI_GENAI_API_KEY                  0  https://inference.generativeai.us-chicago-1.oci.oraclecloud.com/v1
+                                                   signup: https://cloud.oracle.com
+snowflake_cortex SNOWFLAKE_PAT                      0  https://YOUR-ACCOUNT.snowflakecomputing.com/api/v2/cortex/v1
+                                                   signup: https://app.snowflake.com
+databricks   DATABRICKS_TOKEN                   0  https://YOUR-WORKSPACE.cloud.databricks.com/serving-endpoints
+                                                   signup: https://databricks.com
+sap_aicore   SAP_AICORE_KEY                     0  https://api.ai.prod.eu-central-1.aws.ml.hana.ondemand.com/v2
+                                                   signup: https://sap.com
+alephalpha   ALEPH_ALPHA_API_KEY                0  https://api.aleph-alpha.com/v1
+                                                   signup: https://app.aleph-alpha.com
+jabir        JABIR_API_KEY                      0  https://api.jabirproject.org/v1
+                                                   signup: https://jabirproject.org
+exa          EXA_API_KEY                        0  https://api.exa.ai
+                                                   signup: https://dashboard.exa.ai
+tavily       TAVILY_API_KEY                     0  https://api.tavily.com
+                                                   signup: https://app.tavily.com
+brave_search BRAVE_API_KEY                      0  https://api.search.brave.com/res/v1
+                                                   signup: https://brave.com/search/api
+serper       SERPER_API_KEY                     0  https://google.serper.dev
+                                                   signup: https://serper.dev
+firecrawl    FIRECRAWL_API_KEY                  0  https://api.firecrawl.dev/v1
+                                                   signup: https://firecrawl.dev
+jina_reader  JINA_READER_KEY                    0  https://r.jina.ai
+                                                   signup: https://jina.ai/reader
+you_com      YDC_API_KEY                        0  https://api.you.com/v1
+                                                   signup: https://you.com/platform
+elevenlabs   ELEVENLABS_API_KEY                 0  https://api.elevenlabs.io/v1
+                                                   signup: https://elevenlabs.io
+stability    STABILITY_API_KEY                  0  https://api.stability.ai/v1
+                                                   signup: https://platform.stability.ai
+fal          FAL_KEY                            0  https://fal.run
+                                                   signup: https://fal.ai/dashboard/keys
+assemblyai   ASSEMBLYAI_API_KEY                 0  https://api.assemblyai.com/v2
+                                                   signup: https://assemblyai.com
+deepgram     DEEPGRAM_API_KEY                   0  https://api.deepgram.com/v1
+                                                   signup: https://console.deepgram.com
+openweather  OPENWEATHER_API_KEY                0  https://api.openweathermap.org/data/2.5
+                                                   signup: https://openweathermap.org/api
 deepbricks   DEEPBRICKS_API_KEY                 0  https://api.deepbricks.ai/v1
                                                    signup: https://deepbricks.ai
 siray        SIRAY_API_KEY                      0  https://api.siray.ai/v1
