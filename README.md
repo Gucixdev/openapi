@@ -33,3 +33,8 @@ Tests: `.venv/bin/python -m pytest -q` (fake clients and a local HTTP server sta
 - `./openapi.py init` runs `wizard.py`: one hidden prompt per key with its signup link; Enter skips. Keys go to `~/.config/openapi/keys.env`, never into the repo.
 - Images (`images.py`, tool `image`): uses the first of TOGETHER / OPENAI / NEBIUS / FIREWORKS keys that is set (OpenAI-style `/images/generations`), else keyless Pollinations, which is flaky (402/503 on some prompts). Files go to `~/Pictures/openapi` (`IMAGE_DIR` overrides).
 - Jev (`jev.py`, tool `jev`): TypeSafe AI System One, typed noul/choice/score answers, `TYPESAFE_API_KEY`. Request shape from the docs quickstart, never run against the live API.
+
+## Choosing models
+- `ask(task=...)`: general, code, reason, fast, long. `auto` ranks providers by their best model for the task (name heuristic in `scoring.py`: coder / reasoning / size / fast markers; embeddings, image and speech models are dropped), then fails over as before.
+- `paid=true` (or `OPENAPI_PAID=1`): OpenRouter's paid models count too, not only `:free`. Free is still preferred on a tie.
+- `best(task)`: the top models you could get right now. `budget()`: remaining requests/tokens from each provider's `x-ratelimit-*` headers, cooldowns, session use and OpenRouter credit. Every `ask` footer shows what is left.

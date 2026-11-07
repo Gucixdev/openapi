@@ -8,7 +8,7 @@
     ./openapi.py init          guided setup: a key per provider (hidden), what is available, register with Claude Code
     ./openapi.py stats         providers / models count        ./openapi.py test   one live call per provider
     ./openapi.py add NAME      set one key                     ./openapi.py        (no arguments) the MCP server on stdio
-Tools it gives Claude: ask, council, list_models, stats, status.   Keys: environment, or ~/.config/openapi/keys.env (mode 600).
+Tools it gives Claude: ask (task-aware), council, best, budget, list_models, stats, status.   Keys: environment, or ~/.config/openapi/keys.env (mode 600).
 Any other OpenAI-compatible endpoint: three lines in ~/.config/openapi/providers.toml (see user_providers)."""
 from __future__ import annotations
 
@@ -36,6 +36,7 @@ import images
 import integrations
 import jev as jev_api
 import notion
+import scoring
 import wizard
 from mcp.server.mcpserver import MCPServer
 
@@ -365,8 +366,18 @@ def _factory(p: Provider) -> Any:
         async def strip(req: Any) -> None:
             req.headers.pop("authorization", None)
         import httpx2
-        return openai.AsyncOpenAI(base_url=p.base_url, api_key="none", max_retries=0, timeout=60, http_client=httpx2.AsyncClient(event_hooks={"request": [strip]}))
-    return openai.AsyncOpenAI(base_url=p.base_url, api_key=p.key() or "none", max_retries=0, timeout=60)
+        return openai.AsyncOpenAI(base_url=p.base_url, api_key="none", max_retries=0, timeout=60, http_client=httpx2.AsyncClient(event_hooks={"request": [strip], "response": [_limits_hook(p.name)]}))
+    import httpx2
+    return openai.AsyncOpenAI(base_url=p.base_url, api_key=p.key() or "none", max_retries=0, timeout=60, http_client=httpx2.AsyncClient(timeout=60, event_hooks={"response": [_limits_hook(p.name)]}))
+
+
+def _limits_hook(name: str) -> Any:
+    async def hook(resp: Any) -> None:
+        try:
+            scoring.record(name, resp.headers)
+        except Exception:   # bookkeeping must never break a call
+            pass
+    return hook
 
 
 async def _stream(resp: Any) -> Any:
@@ -396,6 +407,7 @@ class Router:
         self._factory, self._clock = client_factory, clock
         self._clients: dict[str, Any] = {}
         self._models: dict[str, list[str]] = {}
+        self._full: dict[str, list[str]] = {}    # everything listed, before the free filter (paid models are used only when allowed)
         self._raw: dict[str, int] = {}           # models listed before the free filter
         self._bad: dict[str, set[str]] = {}      # provider -> models it listed but refused (not for this key/plan)
         self._rest: dict[str, float] = {}        # provider -> clock() until which it is skipped
@@ -413,27 +425,45 @@ class Router:
             self._clients[p.name] = self._factory(p)
         return self._clients[p.name]
 
-    async def models(self, p: Provider, refresh: bool = False) -> list[str]:
+    async def models(self, p: Provider, refresh: bool = False, paid: bool = False) -> list[str]:
         if p.models:
             self._raw[p.name] = len(p.models)
             return list(p.models)
         if refresh or p.name not in self._models:
             ids = sorted(m.id for m in (await self._client(p).models.list()).data)
             self._raw[p.name] = len(ids)
+            self._full[p.name] = ids
             self._models[p.name] = [i for i in ids if i.endswith(":free")] if p.free_only else ids
-        return self._models[p.name]
+        return self._full[p.name] if paid and p.name in self._full else self._models[p.name]
 
     @staticmethod
-    def ranked(p: Provider, ids: list[str]) -> list[str]:
-        """The provider's models, the ones matching its hints first (in hint order), the rest after."""
-        out: list[str] = []
-        for hint in p.prefer:
-            out += [i for i in ids if hint in i.lower() and i not in out]
-        return out + [i for i in ids if i not in out]
+    def worth(p: Provider, mid: str, task: str = "general") -> float:
+        """Score of one model for a task: the name heuristic (scoring.score) plus a small bonus for the provider's own `prefer` hints."""
+        low = mid.lower()
+        hint = next((len(p.prefer) - n for n, h in enumerate(p.prefer) if h in low), 0)
+        return scoring.score(mid, task) + 0.5 * hint
 
     @staticmethod
-    def choose(p: Provider, ids: list[str]) -> str | None:
-        return next(iter(Router.ranked(p, ids)), None)
+    def ranked(p: Provider, ids: list[str], task: str = "general") -> list[str]:
+        """The provider's models, best first for the task (embeddings, image and speech models dropped); ties keep the listed order."""
+        keep = [(Router.worth(p, i, task), n, i) for n, i in enumerate(ids)]
+        return [i for sc, _, i in sorted(keep, key=lambda t: (-t[0], t[1])) if sc > -500]
+
+    @staticmethod
+    def choose(p: Provider, ids: list[str], task: str = "general") -> str | None:
+        return next(iter(Router.ranked(p, ids, task)), None)
+
+    async def _order(self, plan: list[tuple[Provider, str | None]], task: str, paid: bool) -> list[tuple[Provider, str | None]]:
+        """auto: best provider first = the one whose best model scores highest for the task. Providers whose list cannot be had keep their place at the end."""
+        async def top(p: Provider) -> float:
+            try:
+                ids = await asyncio.wait_for(self.models(p, paid=paid), 8)
+            except Exception:
+                return -2000.0
+            best = self.choose(p, [i for i in ids if i not in self._bad.get(p.name, ())], task)
+            return self.worth(p, best, task) if best else -1500.0
+        tops = await asyncio.gather(*(top(p) for p, _ in plan))
+        return [x for _, _, x in sorted(((-t, n, x) for n, (t, x) in enumerate(zip(tops, plan))), key=lambda r: (r[0], r[1]))]
 
     async def survey(self, timeout: float = 20.0) -> list[Survey]:
         """Ask every provider what it offers, all at once. Without a key the public catalog (if there is one) still counts as listed."""
@@ -459,8 +489,12 @@ class Router:
             return [(p, rest or None)]
         raise RouterError(f"unknown provider '{head}' (known: {', '.join(self.providers)}); use auto, provider or provider/model")
 
-    async def ask(self, prompt: str, model: str = "auto", system: str | None = None, max_tokens: int | None = None, temperature: float | None = None) -> Answer:
+    async def ask(self, prompt: str, model: str = "auto", system: str | None = None, max_tokens: int | None = None, temperature: float | None = None,
+                  task: str = "general", paid: bool | None = None) -> Answer:
+        paid = bool(os.environ.get("OPENAPI_PAID")) if paid is None else paid
         plan, explicit = self.plan(model), model not in ("", "auto")
+        if not explicit and len(plan) > 1:
+            plan = await self._order(plan, task, paid)
         if not plan:
             raise RouterError("no provider has a key: openapi init  (or set one of " + ", ".join(p.env for p in self.providers.values() if p.env) + ")")
         msgs = ([{"role": "system", "content": system}] if system else []) + [{"role": "user", "content": prompt}]
@@ -470,7 +504,7 @@ class Router:
                 tried.append(f"{p.name}: resting {self.resting(p.name):.0f}s")
                 continue
             try:
-                cands = [want] if want else [m for m in self.ranked(p, await self.models(p)) if m not in self._bad.get(p.name, ())][:MODEL_TRIES]
+                cands = [want] if want else [m for m in self.ranked(p, await self.models(p, paid=paid), task) if m not in self._bad.get(p.name, ())][:MODEL_TRIES]
                 if not cands:
                     tried.append(f"{p.name}: no models")
                     continue
@@ -557,14 +591,17 @@ def router() -> Router:
 
 
 def _fmt(a: Answer) -> str:
-    return f"{a.text}\n\n[{a.provider}/{a.model}, {a.tokens} tokens]" + (f"\n[skipped: {'; '.join(a.tried)}]" if a.tried else "")
+    left = scoring.describe(a.provider)
+    return f"{a.text}\n\n[{a.provider}/{a.model}, {a.tokens} tokens" + (f"; left: {left}" if left else "") + "]" + (f"\n[skipped: {'; '.join(a.tried)}]" if a.tried else "")
 
 
 @mcp.tool()
-async def ask(prompt: str, model: str = "auto", system: str = "", max_tokens: int = 0) -> str:
-    """Ask another model. model: "auto" (first provider that answers, failing over on rate limits), a provider ("groq"), or "provider/model-id"."""
+async def ask(prompt: str, model: str = "auto", system: str = "", max_tokens: int = 0, task: str = "general", paid: bool = False) -> str:
+    """Ask another model. model: "auto" (the best available model for the task, failing over on rate limits), a provider ("groq"), or "provider/model-id".
+    task: general, code, reason, fast or long - decides which models rank first (code prefers coder models). paid: also use paid models (OpenRouter
+    credits); the OPENAPI_PAID=1 environment variable makes that the default. Free ones still come first when they score the same."""
     try:
-        return _fmt(await router().ask(prompt, model, system or None, max_tokens or None))
+        return _fmt(await router().ask(prompt, model, system or None, max_tokens or None, task=task, paid=paid or None))
     except RouterError as e:
         return f"error: {e}"
 
@@ -574,6 +611,43 @@ async def council(prompt: str, models: list[str], max_tokens: int = 0) -> str:
     """Ask several models the same question in parallel and show every answer side by side (models as for ask)."""
     res = await router().council(prompt, models, None, max_tokens or None)
     return "\n\n".join(f"## {m}\n{_fmt(r) if isinstance(r, Answer) else 'error: ' + str(r)}" for m, r in zip(models, res))
+
+
+@mcp.tool()
+async def best(task: str = "general", top: int = 10, paid: bool = False) -> str:
+    """The highest-scoring models you could get right now for a task (general, code, reason, fast, long), across all configured providers."""
+    r, rows = router(), []
+    for p in r.configured():
+        try:
+            ids = await asyncio.wait_for(r.models(p, paid=paid or bool(os.environ.get("OPENAPI_PAID"))), 10)
+        except Exception:
+            continue
+        rows += [(r.worth(p, i, task), p.name, i) for i in r.ranked(p, [i for i in ids if i not in r._bad.get(p.name, ())], task)[:top]]
+    rows.sort(key=lambda t: -t[0])
+    return "\n".join(f"{sc:6.1f}  {pn}/{i}" + (f"   [{'resting ' + str(round(r.resting(pn))) + 's' if r.resting(pn) else 'ready'}]") for sc, pn, i in rows[:top]) or "no provider has a key set"
+
+
+@mcp.tool()
+async def budget() -> str:
+    """What is left: per provider the last rate-limit headers (requests and tokens remaining), cooldowns, this session's use, and OpenRouter credit."""
+    r, lines = router(), []
+    for p in r.providers.values():
+        if not p.key():
+            continue
+        s = r.stats[p.name]
+        rest = f"resting {r.resting(p.name):.0f}s" if r.resting(p.name) else "ready"
+        lines.append(f"{p.name:<12} {rest:<14} used {s.calls} calls/{s.tokens} tok   {scoring.describe(p.name)}")
+    if os.environ.get("OPENROUTER_API_KEY"):
+        try:
+            import httpx2
+            async with httpx2.AsyncClient(timeout=10) as c:
+                d = (await c.get("https://openrouter.ai/api/v1/auth/key", headers={"Authorization": "Bearer " + os.environ["OPENROUTER_API_KEY"]})).json().get("data", {})
+            left = d.get("limit_remaining")
+            lines.append(f"openrouter credit: used ${d.get('usage', 0):.4f}" + (f", left ${left:.4f} of ${d.get('limit'):.2f}" if left is not None else ", no spending limit set")
+                         + (", free tier (no credits bought)" if d.get("is_free_tier") else ""))
+        except Exception as e:
+            lines.append(f"openrouter credit: cannot read ({type(e).__name__})")
+    return "\n".join(lines) or "no provider has a key set"
 
 
 @mcp.tool()
