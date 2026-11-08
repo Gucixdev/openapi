@@ -34,3 +34,6 @@ def test_record_headers():
     scoring.record("x", {"x-ratelimit-remaining-tokens": "900", "x-ratelimit-limit-tokens": "1000"})
     assert "tok 900/1000" in scoring.describe("x")
     assert scoring.describe("nobody") == ""
+
+def test_unknown_family_gets_no_task_bonus():
+    assert scoring.rank(["nexus-coder:q4", "llama-3.3-70b"], "code")[0] == "llama-3.3-70b"

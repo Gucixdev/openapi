@@ -1,6 +1,6 @@
 # openapi
 
-One file, `openapi.py`: an MCP server over the free tiers of 28 LLM providers, with failover, plus the CLI that sets it up.
+One file, `openapi.py`: an MCP server over the free tiers of 200+ LLM providers, with failover, plus the CLI that sets it up.
 No install step: `uv` reads the dependencies (mcp, openai, typer) from the header of the file.
 
 ```sh
@@ -24,6 +24,19 @@ name = "ollama"; base_url = "http://localhost:11434/v1"; env = ""   # env = "" :
 
 Tests: `.venv/bin/python -m pytest -q` (fake clients and a local HTTP server standing in for a provider) and
 `.venv/bin/python tests/stdio_check.py` (the real MCP protocol). Not run against live providers with keys yet.
+
+## The catalog: `providers.json`
+One file with every provider (endpoint, key variable, signup link, tags `free` / `keyless` / `local` / `gateway` / `regional` / `search` / `media` ..., `status`, `checked`)
+and, for the ones that answer with a key (or need none), their models with tags (`free`, `code`, `reason`, `fast`, `long`, `vision`) and context length.
+
+```sh
+./openapi.py catalog                 # list every provider, one tiny live call per usable one (sequential), rewrite providers.json
+./openapi.py catalog --no-chat       # listing only, no tokens spent
+./openapi.py catalog --only groq     # refresh one or a few;   --print: table to the terminal, write nothing
+```
+Status: `ok` (a live call worked) | `listed` (catalog answers, no chat tried) | `needs-key` (endpoint exists, answers 401) | `unreachable` | `down` (local server not running) | `FAIL <why>` | `unverified` (endpoint never confirmed).
+The file is only ever appended to: a refresh keeps every row it did not produce. A row added by hand (name, base_url, env) is used by the server like a built-in;
+the built-in tuple wins on a name clash and `providers.toml` has the last word. Keys are never written to it.
 
 ## Notes integrations and setup (all optional)
 

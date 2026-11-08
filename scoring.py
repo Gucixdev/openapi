@@ -42,6 +42,7 @@ def score(model_id: str, task: str = "general") -> float:
     if _EXCLUDE.search(m):
         return -1000.0
     base = next((s for rx, s in _FAMILY_RE if rx.search(m)), 40.0)
+    known = base > 40.0       # an unknown family earns no task bonus: a local fine-tune that merely has "coder" in its name proved useless
     size = _size_b(m)
     big = min(30.0, 4 * math.log2(size)) if size >= 1 else 0.0
     s = base + (-big if task == "fast" else big * 0.5)
@@ -49,6 +50,8 @@ def score(model_id: str, task: str = "general") -> float:
         s -= 3
     if m.endswith(":free"):
         s -= 1                    # free tiers are rate limited harder: a tie goes to the paid id when paid is allowed
+    if not known:
+        return s
     if task == "code":
         s += 25 if re.search(r"cod(er|ex|estral)|devstral|starcoder", m) else 0
         s += 6 if re.search(r"deepseek|qwen|kimi|glm|gpt-5|claude|sonnet|opus", m) else 0

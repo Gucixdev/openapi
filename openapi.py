@@ -13,6 +13,7 @@ Any other OpenAI-compatible endpoint: three lines in ~/.config/openapi/providers
 from __future__ import annotations
 
 import asyncio
+import datetime
 import getpass
 import json
 import os
@@ -31,6 +32,7 @@ import logging
 import openai
 import typer
 from adapters import ADAPTERS
+import catalog
 import coderabbit as coderabbit_api
 import images
 import integrations
@@ -261,18 +263,30 @@ PROVIDERS: tuple[Provider, ...] = (
 )
 
 
+def catalog_providers(rows: list[dict] | None = None) -> list[Provider]:
+    """The providers that providers.json adds to the built-in tuple (a name the code already defines is ignored here). A broken file is reported on stderr and skipped: it must never take the server down."""
+    try:
+        rows = catalog.load() if rows is None else rows
+    except ValueError as e:
+        print(f"openapi: ignoring catalog: {e}", file=sys.stderr)
+        return []
+    return [Provider(r["name"], r["base_url"], r["env"], tuple(r.get("prefer", ())), bool(r.get("free_only", False)), r.get("signup", ""), tuple(r.get("models", ())), r.get("api", "openai"))
+            for r in catalog.extra_rows(rows, {p.name for p in PROVIDERS})]
+
+
 def user_providers(path: Path | None = None) -> tuple[Provider, ...]:
-    """Built-in providers plus ~/.config/openapi/providers.toml (OPENAPI_PROVIDERS = another path); a row with a built-in's name replaces it.
+    """Built-in providers, then the extras in providers.json, then ~/.config/openapi/providers.toml (OPENAPI_PROVIDERS = another path); a row with an earlier name replaces it.
     Any OpenAI-compatible endpoint, a local Ollama too (env = "" means no key):
         [[provider]]
         name = "ollama"; base_url = "http://localhost:11434/v1"; env = ""
     """
     path = path or Path(os.environ.get("OPENAPI_PROVIDERS", Path.home() / ".config/openapi/providers.toml"))
     out = {p.name: p for p in PROVIDERS}
+    out.update({p.name: p for p in catalog_providers()})
     try:
         data = tomllib.loads(path.read_text())
     except FileNotFoundError:
-        return PROVIDERS
+        return tuple(out.values())
     for row in data.get("provider", []):
         try:
             out[row["name"]] = Provider(row["name"], row["base_url"], row["env"], tuple(row.get("prefer", ())), bool(row.get("free_only", False)), row.get("signup", ""), tuple(row.get("models", ())), row.get("api", "openai"))
@@ -519,6 +533,8 @@ class Router:
                 self._rest[p.name] = self._clock() + OUTAGE_COOLDOWN
                 self._fail(p, "unreachable", tried)
             except openai.APIStatusError as e:
+                if e.status_code == 402:      # payment required: it lists models it will not serve to this key - stop trying it this session
+                    self._dead.add(p.name)
                 if e.status_code >= 500:
                     self._rest[p.name] = self._clock() + OUTAGE_COOLDOWN
                 self._fail(p, f"HTTP {e.status_code}", tried)
@@ -795,6 +811,89 @@ def test_cmd() -> None:
             return 1
         return bad
     raise typer.Exit(asyncio.run(go()))
+
+
+def _row_of(p: Provider, old: dict | None) -> dict:
+    """The catalog row for a provider: its old row (notes, hand-made fields) overlaid with what the code says now."""
+    row = dict(old or {})
+    row.update(name=p.name, base_url=p.base_url, env=p.env, api=p.api, signup=p.signup, prefer=list(p.prefer), free_only=p.free_only, models=list(p.models))
+    row["tags"] = catalog.provider_tags(row)
+    return row
+
+
+def _why(e: BaseException) -> str:
+    """Short, key-free reason for a status column."""
+    return " ".join(f"{type(e).__name__} {e}".split())[:140]
+
+
+async def build_catalog(r: Router, old: list[dict], chat: bool = True, only: set[str] | None = None, say: Callable[[str], None] = lambda s: None) -> list[dict]:
+    """List every provider (all at once), then one tiny chat call per provider that is usable, one after the other. Returns the new rows (merge them with the old)."""
+    today = datetime.date.today().isoformat()
+    oldby = {x["name"]: x for x in old}
+    provs = [p for p in r.providers.values() if not only or p.name in only]
+    sem = asyncio.Semaphore(16)
+
+    async def one(p: Provider) -> dict:
+        row = _row_of(p, oldby.get(p.name))
+        keyed = bool(os.environ.get(p.env)) if p.env else True
+        local = "local" in row["tags"]
+        async with sem:
+            try:
+                if p.models:
+                    data = [type("M", (), {"id": i, "model_dump": lambda self=None, i=i: {"id": i}})() for i in p.models]
+                else:
+                    data = (await asyncio.wait_for(r._client(p).models.list(), 20)).data
+                    if not isinstance(data, list):
+                        raise ValueError("answered, but not with a model list")
+            except (openai.AuthenticationError, openai.PermissionDeniedError):
+                row.update(status="needs-key" if not keyed else "FAIL key rejected", checked=today)
+                return row
+            except (openai.APIConnectionError, openai.APITimeoutError, asyncio.TimeoutError, OSError):
+                row.update(status="down" if local else "unreachable", checked=today)
+                return row
+            except Exception as e:      # a listing failure is a status, not a crash
+                row.update(status=("FAIL " if keyed else "no-key ") + _why(e), checked=today)
+                return row
+        free_provider = "free" in row["tags"] or "keyless" in row["tags"]
+        entries = [e for e in (catalog.listed_entry(m, p.free_only) for m in data) if e["id"]]
+        row["listed_count"] = len(entries)
+        row["free_count"] = sum("free" in e["tags"] for e in entries)
+        if keyed or not p.env:       # a public catalog is stored only when we can also use the provider
+            row["listed"] = entries
+        row.update(status="listed", checked=today)
+        return row
+
+    rows = list(await asyncio.gather(*(one(p) for p in provs)))
+    if chat:
+        for row in rows:
+            p = r.providers[row["name"]]
+            if row["status"] != "listed" or not (os.environ.get(p.env) if p.env else True) or "local" in row["tags"]:
+                continue
+            try:
+                a = await r.ask("Reply with the single word: ok", p.name, max_tokens=8)
+                row.update(status="ok", model=a.model, note="")
+            except RouterError as e:
+                row.update(status="FAIL " + _why(e).removeprefix("RouterError all providers failed: "))
+            say(f"{row['status'][:4]:<5} {p.name}")
+            await asyncio.sleep(0.5)       # sequential and unhurried: these are other people's free tiers
+    return rows
+
+
+@app.command("catalog")
+def catalog_cmd(no_chat: bool = typer.Option(False, "--no-chat", help="list only, no live call"), only: list[str] = typer.Option([], "--only", help="refresh just these providers"),
+                out: Path = typer.Option(None, "--out", help="another file than providers.json"), show: bool = typer.Option(False, "--print", help="print the table, write nothing")) -> None:
+    """Write or refresh providers.json: every provider, its status (a live call for each one with a key) and the models of the ones that answer. Appends, never removes."""
+    load_key_file()
+    target = out or catalog.path()
+    old = catalog.load(target)
+    r = Router()
+    new = asyncio.run(build_catalog(r, old, chat=not no_chat, only=set(only) or None, say=typer.echo))
+    rows = catalog.merge(old, new)
+    if show:
+        for x in rows:
+            typer.echo(f"{x['name']:<22} {x.get('status', '-'):<40} {','.join(x['tags'])}")
+        return
+    typer.echo(f"wrote {catalog.write(rows, datetime.date.today().isoformat(), target)}: {len(rows)} providers, {sum(1 for x in rows if x.get('status') == 'ok')} answered a live call")
 
 
 @app.command()
