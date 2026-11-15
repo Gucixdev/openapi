@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# test - run the openapi tests in the project's own .venv (mcp, openai, httpx2 are there); no arguments.
+# A system python3 fails at import ("No module named openai"), that is why this script exists.
+# Without a .venv, uv builds a throw-away one from the header of src/openapi.py.
+set -eu
+cd "$(dirname "$(readlink -f "$0")")"
+[ $# -eq 0 ] || { echo "test: takes no arguments" >&2; exit 2; }
+if [ -x .venv/bin/python ]; then
+	exec .venv/bin/python -m pytest -q -p no:cacheprovider
+fi
+command -v uv > /dev/null || { echo "test: no .venv and no uv (https://docs.astral.sh/uv/)" >&2; exit 2; }
+exec uv run --quiet --with pytest --with pytest-asyncio --with mcp --with openai --with typer --with httpx2 python -m pytest -q -p no:cacheprovider
