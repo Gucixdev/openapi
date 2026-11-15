@@ -31,7 +31,8 @@ class Fake:
                 r = outer.script.pop(0)
                 if isinstance(r, Exception):
                     raise r
-                return type("R", (), {"choices": [type("Ch", (), {"message": type("Msg", (), {"content": r})()})()],
+                text, finish = r if isinstance(r, tuple) else (r, "stop")
+                return type("R", (), {"choices": [type("Ch", (), {"message": type("Msg", (), {"content": text})(), "finish_reason": finish})()],
                                       "usage": type("U", (), {"total_tokens": 7})()})()
         self.models = _M()
         self.chat = type("Chat", (), {"completions": _C()})()
@@ -139,3 +140,30 @@ async def test_fixed_models_are_not_listed():
     p = Provider("px", "http://x", "K", models=("sonar", "sonar-pro"))
     r = Router((p,), client_factory=lambda p: (_ for _ in ()).throw(AssertionError("must not ask the API")))
     assert await r.models(p) == ["sonar", "sonar-pro"]
+
+
+async def test_answer_cut_by_token_limit_is_continued(monkeypatch):
+    fa = Fake(["big"], [("part one, ", "length"), ("part two, ", "length"), "part three."])
+    r, _ = mk(monkeypatch, {"alpha": fa}, [PA])
+    a = await r.ask("q", max_tokens=5)
+    assert a.text == "part one, part two, part three." and a.parts == 3 and not a.truncated
+    last = fa.calls[-1]["messages"]                       # the continuation carries the text so far
+    assert last[-2] == {"role": "assistant", "content": "part one, part two, "} and last[-1]["role"] == "user"
+    assert r.stats["alpha"].calls == 3 and a.tokens == 21
+
+
+async def test_continuation_stops_at_the_cap_and_says_so(monkeypatch):
+    import openapi
+    monkeypatch.setattr(openapi, "CONTINUE_MAX", 2)
+    fa = Fake(["big"], [("a", "length"), ("b", "length"), ("c", "length")])
+    r, _ = mk(monkeypatch, {"alpha": fa}, [PA])
+    a = await r.ask("q")
+    assert a.text == "abc" and a.truncated and a.parts == 3
+    assert "STILL TRUNCATED" in openapi._fmt(a)
+
+
+async def test_finished_answer_makes_one_call(monkeypatch):
+    fa = Fake(["big"], ["done"])
+    r, _ = mk(monkeypatch, {"alpha": fa}, [PA])
+    a = await r.ask("q")
+    assert a.parts == 1 and not a.truncated and len(fa.calls) == 1

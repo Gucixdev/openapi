@@ -38,6 +38,7 @@ import images
 import integrations
 import jev as jev_api
 import notion
+import rest
 import scoring
 import wizard
 from mcp.server.mcpserver import MCPServer
@@ -339,6 +340,7 @@ def set_key(env: str, value: str, path: Path | None = None) -> Path:
 COOLDOWN = 60.0          # seconds a provider rests after a 429 without a retry-after
 OUTAGE_COOLDOWN = 30.0
 MODEL_TRIES = 3          # how many of a provider's models are tried before the next provider
+CONTINUE_MAX = int(os.environ.get("OPENAPI_CONTINUE", "8"))   # extra calls to finish an answer cut by the token limit; 0 = never continue
 
 
 class RouterError(Exception):
@@ -352,6 +354,8 @@ class Answer:
     model: str
     tokens: int
     tried: list[str] = field(default_factory=list)     # "provider: why it was skipped", in order
+    truncated: bool = False                            # still cut off after CONTINUE_MAX continuations
+    parts: int = 1                                     # how many calls the text was stitched from
 
 
 @dataclass
@@ -398,14 +402,17 @@ async def _stream(resp: Any) -> Any:
     """Read a streamed completion to the end; the result looks like a non-streamed one (.choices[0].message.content, .usage.total_tokens)."""
     parts: list[str] = []
     tokens = n = 0
+    finish = None
     async for ch in resp:
         n += 1
         if ch.choices and ch.choices[0].delta.content:
             parts.append(ch.choices[0].delta.content)
+        if ch.choices and getattr(ch.choices[0], "finish_reason", None):
+            finish = ch.choices[0].finish_reason
         if getattr(ch, "usage", None):
             tokens = ch.usage.total_tokens or 0
     from types import SimpleNamespace as NS
-    return NS(choices=[NS(message=NS(content="".join(parts)))], usage=NS(total_tokens=tokens or n))
+    return NS(choices=[NS(message=NS(content="".join(parts)), finish_reason=finish)], usage=NS(total_tokens=tokens or n))
 
 
 def _retry_after(e: openai.RateLimitError) -> float:
@@ -539,10 +546,26 @@ class Router:
                     self._rest[p.name] = self._clock() + OUTAGE_COOLDOWN
                 self._fail(p, f"HTTP {e.status_code}", tried)
             else:
+                text = (r.choices[0].message.content or "") if r.choices else ""
                 tokens = getattr(r.usage, "total_tokens", 0) or 0
+                cut = bool(r.choices) and getattr(r.choices[0], "finish_reason", None) == "length"
+                parts = 1
+                while cut and parts <= CONTINUE_MAX and text:
+                    # the model stopped at the token limit, not because it was done: hand it its own text back and ask for the rest
+                    follow = msgs + [{"role": "assistant", "content": text}, {"role": "user", "content": "Continue exactly where you stopped. No repetition, no preamble."}]
+                    try:
+                        r2, _ = await self._first_model(p, [mid], follow, max_tokens, temperature, tried, explicit=True)
+                    except openai.OpenAIError as e:
+                        tried.append(f"{p.name}/{mid}: continuation failed ({type(e).__name__})")
+                        break
+                    more = (r2.choices[0].message.content or "") if r2.choices else ""
+                    tokens += getattr(r2.usage, "total_tokens", 0) or 0
+                    text += more
+                    parts += 1
+                    cut = bool(r2.choices) and getattr(r2.choices[0], "finish_reason", None) == "length" and bool(more)
                 st = self.stats[p.name]
-                st.calls, st.tokens = st.calls + 1, st.tokens + tokens
-                return Answer((r.choices[0].message.content or "") if r.choices else "", p.name, mid, tokens, tried)
+                st.calls, st.tokens = st.calls + parts, st.tokens + tokens
+                return Answer(text, p.name, mid, tokens, tried, truncated=cut, parts=parts)
         raise RouterError("all providers failed: " + "; ".join(tried))
 
     async def _first_model(self, p: Provider, cands: list[str], msgs: list[dict], max_tokens: int | None, temperature: float | None, tried: list[str], explicit: bool) -> tuple[Any, str]:
@@ -608,7 +631,8 @@ def router() -> Router:
 
 def _fmt(a: Answer) -> str:
     left = scoring.describe(a.provider)
-    return f"{a.text}\n\n[{a.provider}/{a.model}, {a.tokens} tokens" + (f"; left: {left}" if left else "") + "]" + (f"\n[skipped: {'; '.join(a.tried)}]" if a.tried else "")
+    note = (f", {a.parts} parts" if a.parts > 1 else "") + ("; STILL TRUNCATED, ask again for the rest" if a.truncated else "")
+    return f"{a.text}\n\n[{a.provider}/{a.model}, {a.tokens} tokens{note}" + (f"; left: {left}" if left else "") + "]" + (f"\n[skipped: {'; '.join(a.tried)}]" if a.tried else "")
 
 
 @mcp.tool()
@@ -754,12 +778,40 @@ def status() -> str:
     return "\n".join(lines)
 
 
+@mcp.tool()
+def services(name: str = "") -> str:
+    """The REST services `api` can drive (hosting, DNS, CDN, notes, dev); with a name: its auth, docs and example calls."""
+    try:
+        svc = rest.load()
+        return rest.info(svc[name]) if name in svc else rest.listing(svc) if not name else f"error: unknown service '{name}' (known: {', '.join(svc)})"
+    except rest.RestError as e:
+        return f"error: {e}"
+
+
+@mcp.tool()
+async def api(service: str, method: str, path: str, query: dict | None = None, data: str = "", yes: bool = False) -> str:
+    """Call any service from `services` with the key from the environment. GET/HEAD run at once; POST/PUT/PATCH/DELETE change or bill something
+    and are only shown until yes=true, so ask the user before passing it. data is a JSON string. The whole body comes back, never cut."""
+    try:
+        r = await rest.call(rest.load()[service], method, path, {k: str(v) for k, v in (query or {}).items()}, data or None, yes)
+    except KeyError:
+        return f"error: unknown service '{service}' (see services)"
+    except rest.RestError as e:
+        return f"error: {e}"
+    return f"[{r.request.splitlines()[0]} -> {r.status}]\n{r.text}" if r.sent else f"{r.text}\n{r.request}"
+
+
 # ------------------------------------------------------------------ the command line
-app = typer.Typer(add_completion=False, help="MCP server over many free LLM providers. No arguments = start the server; init = guided setup.", invoke_without_command=True)
+app = typer.Typer(add_completion=False, help="Many free LLM providers and REST APIs behind one command. Every tool is a command (dump-api lists them); `serve` is the MCP server. init = guided setup.", invoke_without_command=True)
 
 
 @app.callback()
 def _default(ctx: typer.Context) -> None:
+    try:
+        load_key_file()       # keys.env feeds every command, not only the server
+    except PermissionError as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(1)
     if ctx.invoked_subcommand is None:
         mcp.run()
 
@@ -917,6 +969,194 @@ def init(skip_register: bool = typer.Option(False, "--no-register")) -> None:
     typer.echo(render(asyncio.run(Router().survey())))
     if not skip_register and typer.confirm("\nRegister with Claude Code now?", default=True):
         register()
+
+
+# ------------------------------------------------------------------ every tool as a plain command (CLI first, MCP is the thin wrapper)
+# Same code behind both. --json where there is structure; exit 0 done, 1 failed, 2 bad usage, 3 refused (a write shown, not sent).
+def _text(arg: str) -> str:
+    """'-' reads stdin, '@file' reads a file, anything else is the text itself."""
+    if arg == "-":
+        return sys.stdin.read()
+    if arg.startswith("@"):
+        try:
+            return Path(arg[1:]).expanduser().read_text()
+        except OSError as e:
+            raise typer.BadParameter(str(e))
+    return arg
+
+
+def _done(text: str) -> None:
+    typer.echo(text)
+    raise typer.Exit(1 if text.startswith("error:") else 0)
+
+
+@app.command("ask")
+def ask_cmd(prompt: str = typer.Argument(..., help="the question; - = stdin, @file = a file"), model: str = typer.Option("auto", "--model", "-m", help="auto, provider, or provider/model"),
+            task: str = typer.Option("general", "--task", "-t", help="general, code, reason, fast, long"), system: str = typer.Option("", "--system"),
+            max_tokens: int = typer.Option(0, "--max-tokens", help="per call; an answer cut by it is continued automatically"), paid: bool = typer.Option(False, "--paid"),
+            as_json: bool = typer.Option(False, "--json")) -> None:
+    """Ask one model. A cut-off answer is continued until it ends (OPENAPI_CONTINUE=n limits the extra calls)."""
+    try:
+        a = asyncio.run(router().ask(_text(prompt), model, system or None, max_tokens or None, task=task, paid=paid or None))
+    except RouterError as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(1)
+    typer.echo(json.dumps(a.__dict__, ensure_ascii=False, indent=1) if as_json else _fmt(a))
+    raise typer.Exit(1 if a.truncated else 0)
+
+
+@app.command("council")
+def council_cmd(prompt: str = typer.Argument(...), models: list[str] = typer.Option(..., "--model", "-m", help="repeat for each model"), max_tokens: int = typer.Option(0, "--max-tokens"),
+                as_json: bool = typer.Option(False, "--json")) -> None:
+    """The same question to several models in parallel."""
+    res = asyncio.run(router().council(_text(prompt), models, None, max_tokens or None))
+    if as_json:
+        typer.echo(json.dumps([r.__dict__ if isinstance(r, Answer) else {"error": str(r)} for r in res], ensure_ascii=False, indent=1))
+    else:
+        typer.echo("\n\n".join(f"## {m}\n{_fmt(r) if isinstance(r, Answer) else 'error: ' + str(r)}" for m, r in zip(models, res)))
+
+
+@app.command("models")
+def models_cmd(provider: str = typer.Argument("")) -> None:
+    """Models a provider (or every provider with a key) offers."""
+    _done(asyncio.run(list_models(provider)))
+
+
+@app.command("best")
+def best_cmd(task: str = typer.Argument("general"), top: int = typer.Option(10, "--top"), paid: bool = typer.Option(False, "--paid")) -> None:
+    """The top models you could get right now for a task."""
+    _done(asyncio.run(best(task, top, paid)))
+
+
+@app.command("budget")
+def budget_cmd() -> None:
+    """What is left of each provider's rate limit, cooldowns, OpenRouter credit."""
+    _done(asyncio.run(budget()))
+
+
+@app.command("status")
+def status_cmd() -> None:
+    """Which providers have a key and what this process used."""
+    _done(status())
+
+
+obsidian_app = typer.Typer(help="Notes in the folder OBSIDIAN_VAULT.", no_args_is_help=True)
+notion_app = typer.Typer(help="Notion pages shared with the integration (NOTION_API_KEY).", no_args_is_help=True)
+app.add_typer(obsidian_app, name="obsidian")
+app.add_typer(notion_app, name="notion")
+
+
+@obsidian_app.command("search")
+def obsidian_search_cmd(query: str, limit: int = typer.Option(20, "--limit")) -> None:
+    """Notes whose name or text matches."""
+    _done(integrations.obsidian_search(query, limit))
+
+
+@obsidian_app.command("read")
+def obsidian_read_cmd(path: str) -> None:
+    """One note, path relative to the vault."""
+    _done(integrations.obsidian_read(path))
+
+
+@obsidian_app.command("write")
+def obsidian_write_cmd(path: str, text: str = typer.Argument(..., help="- = stdin, @file = a file"), append: bool = typer.Option(False, "--append")) -> None:
+    """Create, overwrite or append to a note."""
+    _done(integrations.obsidian_write(path, _text(text), append))
+
+
+@notion_app.command("search")
+def notion_search_cmd(query: str, limit: int = typer.Option(20, "--limit")) -> None:
+    """Pages and databases that match."""
+    _done(asyncio.run(notion.notion_search(query, limit)))
+
+
+@notion_app.command("read")
+def notion_read_cmd(page_id: str) -> None:
+    """The text blocks of one page."""
+    _done(asyncio.run(notion.notion_read(page_id)))
+
+
+@notion_app.command("create")
+def notion_create_cmd(parent_page_id: str, title: str, text: str = typer.Argument("", help="- = stdin, @file = a file")) -> None:
+    """A new page under a parent page."""
+    _done(asyncio.run(notion.notion_create(parent_page_id, title, _text(text))))
+
+
+@app.command("coderabbit")
+def coderabbit_cmd(path: str = typer.Argument("/v1/users")) -> None:
+    """Read-only GET against the CodeRabbit admin API."""
+    _done(asyncio.run(coderabbit_api.coderabbit_get(path)))
+
+
+@app.command("image")
+def image_cmd(prompt: str, width: int = typer.Option(1024, "--width"), height: int = typer.Option(1024, "--height")) -> None:
+    """Generate a picture, prints the file path."""
+    _done(asyncio.run(images.image(_text(prompt), width, height)))
+
+
+@app.command("jev")
+def jev_cmd(state: str = typer.Argument(..., help="the text; - = stdin, @file = a file"), questions: str = typer.Argument(..., help='JSON, e.g. \'{"q1":{"type":"noul","text":"..."}}\''),
+            model: str = typer.Option("jev-latest", "--model")) -> None:
+    """Typed questions about a text (TypeSafe System One)."""
+    try:
+        q = json.loads(_text(questions))
+    except ValueError as e:
+        raise typer.BadParameter(f"questions is not JSON: {e}")
+    _done(asyncio.run(jev_api.jev(_text(state), q, model)))
+
+
+@app.command("services")
+def services_cmd(name: str = typer.Argument("", help="one service for its auth, docs and examples"), as_json: bool = typer.Option(False, "--json")) -> None:
+    """The REST services `api` can drive: cheap VPS and PaaS hosts, DNS, CDN, notes. Add your own in ~/.config/openapi/services.json."""
+    try:
+        svc = rest.load()
+    except rest.RestError as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(1)
+    if name and name not in svc:
+        typer.echo(f"error: unknown service '{name}' (known: {', '.join(svc)})", err=True)
+        raise typer.Exit(2)
+    if as_json:
+        typer.echo(json.dumps(svc[name] if name else list(svc.values()), indent=1))
+    else:
+        typer.echo(rest.info(svc[name]) if name else rest.listing(svc))
+
+
+@app.command("api")
+def api_cmd(service: str, method: str, path: str, query: list[str] = typer.Option([], "-q", "--query", help="k=v, repeatable"),
+            data: str = typer.Option("", "-d", "--data", help="JSON body; - = stdin, @file = a file"), yes: bool = typer.Option(False, "--yes", help="send a POST/PUT/PATCH/DELETE (it changes or bills something)"),
+            as_json: bool = typer.Option(False, "--json", help="{sent,status,request,body} instead of the bare body"), out: Path = typer.Option(None, "--out", help="write the body to a file")) -> None:
+    """Call a REST service with its key from the environment. GET runs at once; a write is shown and exits 3 until --yes."""
+    try:
+        svc = rest.load()
+        if service not in svc:
+            typer.echo(f"error: unknown service '{service}' (known: {', '.join(svc)})", err=True)
+            raise typer.Exit(2)
+        qs = dict(q.split("=", 1) for q in query if "=" in q)
+        r = asyncio.run(rest.call(svc[service], method, path, qs, _text(data) if data else None, yes))
+    except rest.RestError as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(1)
+    if as_json:
+        typer.echo(json.dumps({"sent": r.sent, "status": r.status, "request": r.request, "body": r.text}, ensure_ascii=False, indent=1))
+    elif out and r.sent:
+        out.write_text(r.text)
+        typer.echo(f"{r.status}: {len(r.text)} bytes -> {out}", err=True)
+    else:
+        typer.echo(r.text if r.sent else f"{r.text}\n{r.request}")
+    raise typer.Exit(3 if not r.sent else 0 if r.status < 400 else 1)
+
+
+@app.command("dump-api")
+def dump_api() -> None:
+    """Every command with its one-line help, as JSON: what an agent reads instead of tool schemas."""
+    def walk(t: typer.Typer, prefix: str = "") -> list[dict]:
+        rows = [{"command": (prefix + (c.name or c.callback.__name__.removesuffix("_cmd").replace("_", "-"))).strip(), "help": (c.help or (c.callback.__doc__ or "")).strip().splitlines()[0] if (c.help or c.callback.__doc__) else ""}
+                for c in t.registered_commands]
+        for g in t.registered_groups:
+            rows += walk(g.typer_instance, prefix + (g.name or "") + " ")
+        return rows
+    typer.echo(json.dumps(walk(app), indent=1))
 
 
 if __name__ == "__main__":

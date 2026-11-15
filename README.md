@@ -10,8 +10,29 @@ No install step: `uv` reads the dependencies (mcp, openai, typer) from the heade
 ./openapi.py add groq   # one key later;   ./openapi.py register   # claude mcp add
 ```
 
+## CLI first
+Every tool is also a plain command over the same code (MCP is the thin wrapper; `./openapi.py dump-api` lists all commands as JSON):
+`ask`, `council`, `models`, `best`, `budget`, `status`, `obsidian search|read|write`, `notion search|read|create`, `coderabbit`, `image`, `jev`, `services`, `api`.
+A prompt can be `-` (stdin) or `@file`; `--json` where there is structure. Exit codes: 0 done, 1 failed, 2 bad usage, 3 a write was shown and not sent.
+
+**Answers are not cut off.** When a model stops at the token limit (`finish_reason=length`) the router hands it its own text back and asks it to continue, up to
+`OPENAPI_CONTINUE` extra calls (default 8; 0 = off). The footer says how many parts; an answer that is still cut says `STILL TRUNCATED` (and `ask` exits 1).
+
+## One wrapper for every REST API: `api`
+`services.json` lists the REST services (cheap VPS and PaaS hosts: Hetzner, Hostinger, Fly.io, DigitalOcean, Vultr, Linode, Scaleway, UpCloud, Render, Koyeb, Railway; Cloudflare, Bunny, Netlify, Vercel; Gandi; GitHub, Notion, CodeRabbit)
+with base URL, auth style, key variable, docs link and example calls. Rows marked `verified` had their base URL and auth read in the docs; the rest are from memory.
+```sh
+./openapi.py services                       # the list, key set or not
+./openapi.py services hetzner               # auth, docs, examples
+./openapi.py api hetzner GET /servers       # runs at once; the key comes from the environment / keys.env and is never printed
+./openapi.py api hetzner POST /servers -d '{"name":"x","server_type":"cpx22","image":"ubuntu-24.04","location":"nbg1"}'   # shown, exit 3, nothing sent
+./openapi.py api hetzner POST /servers -d @server.json --yes                                                              # sent (this bills)
+```
+A path cannot name another host, so a key only ever goes to its own service. The body comes back whole. Your own services (or an override of a built-in) go in `~/.config/openapi/services.json`
+(same shape; the file is append-only like the catalog). Not supported: APIs that need request signing or OAuth (OVHcloud, Contabo, Oracle Cloud, AWS). Not run against any live service yet: only a local stand-in server.
+
 Tools Claude gets: `ask(prompt, model="auto")` (`auto` = first provider that answers, `groq`, or `groq/llama-3.3-70b-versatile`),
-`council(prompt, models[])`, `list_models`, `stats`, `status`. A 429 rests that provider and `auto` moves on; a model a provider
+`council(prompt, models[])`, `list_models`, `stats`, `status`, `services`, `api`. A 429 rests that provider and `auto` moves on; a model a provider
 lists but refuses is remembered and skipped; a rejected key drops the provider for the session.
 
 Keys: environment variables or `~/.config/openapi/keys.env` (mode 600 or it is refused). Any other OpenAI-compatible endpoint,
