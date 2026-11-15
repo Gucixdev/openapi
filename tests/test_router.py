@@ -167,3 +167,11 @@ async def test_finished_answer_makes_one_call(monkeypatch):
     r, _ = mk(monkeypatch, {"alpha": fa}, [PA])
     a = await r.ask("q")
     assert a.parts == 1 and not a.truncated and len(fa.calls) == 1
+
+
+async def test_reasoning_model_with_empty_answer_is_retried_with_a_bigger_budget(monkeypatch):
+    fa = Fake(["big"], [("", "length"), ("", "length"), "the answer"])
+    r, _ = mk(monkeypatch, {"alpha": fa}, [PA])
+    a = await r.ask("q", max_tokens=60)
+    assert a.text == "the answer" and not a.truncated
+    assert [c["max_tokens"] for c in fa.calls] == [60, 120, 240] and fa.calls[-1]["messages"] == fa.calls[0]["messages"]

@@ -549,12 +549,14 @@ class Router:
                 text = (r.choices[0].message.content or "") if r.choices else ""
                 tokens = getattr(r.usage, "total_tokens", 0) or 0
                 cut = bool(r.choices) and getattr(r.choices[0], "finish_reason", None) == "length"
-                parts = 1
-                while cut and parts <= CONTINUE_MAX and text:
-                    # the model stopped at the token limit, not because it was done: hand it its own text back and ask for the rest
-                    follow = msgs + [{"role": "assistant", "content": text}, {"role": "user", "content": "Continue exactly where you stopped. No repetition, no preamble."}]
+                parts, budget = 1, max_tokens
+                while cut and parts <= CONTINUE_MAX:
+                    if text:      # the model stopped at the token limit, not because it was done: hand it its own text back and ask for the rest
+                        follow = msgs + [{"role": "assistant", "content": text}, {"role": "user", "content": "Continue exactly where you stopped. No repetition, no preamble."}]
+                    else:         # nothing visible yet: a reasoning model spent the whole budget thinking, so ask again with twice the room
+                        follow, budget = msgs, (budget or 1024) * 2
                     try:
-                        r2, _ = await self._first_model(p, [mid], follow, max_tokens, temperature, tried, explicit=True)
+                        r2, _ = await self._first_model(p, [mid], follow, budget, temperature, tried, explicit=True)
                     except openai.OpenAIError as e:
                         tried.append(f"{p.name}/{mid}: continuation failed ({type(e).__name__})")
                         break
@@ -562,7 +564,7 @@ class Router:
                     tokens += getattr(r2.usage, "total_tokens", 0) or 0
                     text += more
                     parts += 1
-                    cut = bool(r2.choices) and getattr(r2.choices[0], "finish_reason", None) == "length" and bool(more)
+                    cut = bool(r2.choices) and getattr(r2.choices[0], "finish_reason", None) == "length"
                 st = self.stats[p.name]
                 st.calls, st.tokens = st.calls + parts, st.tokens + tokens
                 return Answer(text, p.name, mid, tokens, tried, truncated=cut, parts=parts)
