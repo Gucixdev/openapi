@@ -77,23 +77,9 @@ the built-in tuple wins on a name clash and `providers.toml` has the last word. 
 `providers.json` is written as one block per provider, one key per line, short lists on one line, listed models one per line (valid JSON, 5.6k lines instead of 21k, a refresh diffs only what changed).
 `keys.env.example` is generated, one line per key grouped by kind (`src/openapi.py keys-example --out keys.env.example`); do not edit it by hand.
 
-## Notes integrations and setup (all optional)
+## Notes integrations and setup
 
-- Obsidian: set `OBSIDIAN_VAULT` to a vault folder -> tools `obsidian_search`, `obsidian_read`, `obsidian_write` (paths cannot leave the vault).
-- Notion (`notion.py`): `NOTION_API_KEY` (internal integration token) -> `notion_search`, `notion_read`, `notion_create`.
-- CodeRabbit (`coderabbit.py`): `CODERABBIT_API_KEY` -> read-only `coderabbit` tool for its admin API (not an LLM).
-- Gmail (`google.py`): OAuth refresh token in `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN` (or a short-lived `GOOGLE_ACCESS_TOKEN`) -> `gmail_search`, `gmail_read`, `gmail_draft`, `gmail_send`. Sending needs `--yes`/`yes=True`. Calendar and Drive would live in the same file.
-- Outlook (`microsoft.py`): `MS_CLIENT_ID`, `MS_REFRESH_TOKEN` (`MS_CLIENT_SECRET` for a confidential app, `MS_TENANT` default `common`) -> `outlook_search`, `outlook_read`, `outlook_draft`, `outlook_send`, over Microsoft Graph.
-- Hosting (`hosting.py`): one shape over Hetzner, DigitalOcean, Vultr and Linode (keys as in `services.json`) -> `hosting_servers`, `hosting_plans` (cheapest first), `hosting_create` and `hosting_delete` (Hetzner and DigitalOcean; shown and not sent without `--yes`). Anything else: `openapi api`.
-- The Gmail, Graph and hosting paths and field names are from the providers' documentation and have only run against a local stand-in server (`tests/test_mail_hosting.py`), not a real account.
-- `src/openapi.py init` runs `wizard.py`: one hidden prompt per key with its signup link; Enter skips. Keys go to `~/.config/openapi/keys.env`, never into the repo.
-- Speech (`audio.py`, tools `speak` and `transcribe`): speech to text uses Groq `whisper-large-v3-turbo` or OpenAI `whisper-1` when the key is set (files up to 25 MB), then ElevenLabs `scribe_v1` (`ELEVENLABS_API_KEY`), else a local `whisper-cli` with `WHISPER_MODEL=/path/ggml-*.bin`. Text to speech tries Groq Orpheus (the account admin must accept the model terms once in the Groq console) and OpenAI `tts-1`, then ElevenLabs (`eleven_flash_v2_5`, mp3, `voice` = a voice id), else local `espeak-ng` (robotic but offline). Spoken files go to `~/Music/openapi` (`AUDIO_DIR` overrides).
-- Images (`images.py`, tool `image`): uses the first of TOGETHER / OPENAI / NEBIUS / FIREWORKS keys that is set (OpenAI-style `/images/generations`), else keyless Pollinations, which is flaky (402/503 on some prompts). Files go to `~/Pictures/openapi` (`IMAGE_DIR` overrides).
-- Jev (`jev.py`, tool `jev`): TypeSafe AI System One, typed noul/choice/score answers, `TYPESAFE_API_KEY`. Request shape from the docs quickstart, never run against the live API.
-- Video (`ytdlp.py`, tool `video`): wraps the installed `yt-dlp`, no key; mode info | transcript | context (both, written to `--out`) | audio | video. Tested against a fake `yt-dlp`, never against YouTube.
-- Apps (`src/apps/`, tools `blender` `gimp` `krita` `godot`): headless wrappers over each program's own CLI, output only into an explicit `--out` dir; PATH first, then the flatpak. Needs the program installed (blender: not here).
-- `blender` version | info | render | export glb/obj/fbx/stl/usd/ply | script; `gimp` version | convert | scale | scriptfu (GIMP 3, throwaway profile); `krita` version | export; `godot` version | script | check | import | export.
-- Run for real here: godot 4.7 (version, script, check), GIMP 3.2.6 and Krita 5.3.4 via flatpak (version, convert, scale, scriptfu, export). Blender, godot import/export are only tested against fakes. Never aim godot at a project open in the editor.
+Obsidian, Notion, CodeRabbit, Gmail, Outlook, hosting, speech, images, video and app wrappers: [docs/integrations.md](docs/integrations.md).
 
 ## Choosing models
 - `ask(task=...)`: general, code, reason, fast, long. `auto` ranks providers by their best model for the task (name heuristic in `scoring.py`: coder / reasoning / size / fast markers; embeddings, image and speech models are dropped), then fails over as before.
