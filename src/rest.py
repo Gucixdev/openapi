@@ -19,7 +19,7 @@ except ImportError:  # pragma: no cover
     import httpx
 
 SAFE = ("GET", "HEAD")
-FILE = Path(__file__).with_name("services.json")
+FILE = Path(__file__).resolve().parent.parent / "services.json"
 
 
 class RestError(Exception):

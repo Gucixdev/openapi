@@ -154,7 +154,8 @@ async def test_answer_cut_by_token_limit_is_continued(monkeypatch):
 
 async def test_continuation_stops_at_the_cap_and_says_so(monkeypatch):
     import openapi
-    monkeypatch.setattr(openapi, "CONTINUE_MAX", 2)
+    import router as router_mod       # the constant lives where it is read
+    monkeypatch.setattr(router_mod, "CONTINUE_MAX", 2)
     fa = Fake(["big"], [("a", "length"), ("b", "length"), ("c", "length")])
     r, _ = mk(monkeypatch, {"alpha": fa}, [PA])
     a = await r.ask("q")
@@ -175,3 +176,85 @@ async def test_reasoning_model_with_empty_answer_is_retried_with_a_bigger_budget
     a = await r.ask("q", max_tokens=60)
     assert a.text == "the answer" and not a.truncated
     assert [c["max_tokens"] for c in fa.calls] == [60, 120, 240] and fa.calls[-1]["messages"] == fa.calls[0]["messages"]
+
+
+async def test_local_server_is_the_last_resort_even_when_it_scores_higher(monkeypatch):
+    monkeypatch.delenv("OPENAPI_LOCAL_FIRST", raising=False)
+    loc = Provider("loc", "http://localhost:1/v1", "T_LOC", ("coder",))
+    fakes = {"loc": Fake(["coder"], ["from local"]), "alpha": Fake(["tiny"], ["from alpha"])}
+    r, _ = mk(monkeypatch, fakes, [loc, PA])
+    a = await r.ask("hi")
+    assert a.provider == "alpha"
+
+
+async def test_chat_fails_over_and_skips_providers_that_cannot_take_tools(monkeypatch):
+    fakes = {"alpha": Fake(["m"], [openai.RateLimitError("slow", response=_resp(429), body=None)]), "beta": Fake(["m"], ["from beta"])}
+    r, _ = mk(monkeypatch, fakes, [PA, PB])
+    resp, p, mid, tried = await r.chat([{"role": "user", "content": "x"}], tools=[{"type": "function", "function": {"name": "f", "parameters": {}}}])
+    assert p.name == "beta" and resp.choices[0].message.content == "from beta"
+    assert fakes["beta"].calls[0]["tools"][0]["function"]["name"] == "f" and any("alpha" in t for t in tried)
+
+
+async def test_failover_matches_the_lean_spec_on_random_plans(monkeypatch):
+    """verify/Failover.lean: the answer comes from the first provider that answers, every earlier one was skipped, none after it was called."""
+    import random
+    rng = random.Random(7)
+    for _ in range(60):
+        n = rng.randint(1, 6)
+        ps = [Provider(f"p{i}", f"http://p{i}", f"T_P{i}", ()) for i in range(n)]
+        ok = [rng.random() < 0.4 for _ in range(n)]
+        fakes = {p.name: Fake(["m"], [f"from {p.name}"] if ok[i] else [openai.RateLimitError("slow", response=_resp(429), body=None)]) for i, p in enumerate(ps)}
+        r, _ = mk(monkeypatch, fakes, ps)
+        if not any(ok):
+            with pytest.raises(RouterError):
+                await r.ask("x")
+            assert all(len(f.calls) == 1 for f in fakes.values())          # none_means_all_failed: every provider was tried
+            continue
+        first = ok.index(True)
+        a = await r.ask("x")
+        assert a.provider == f"p{first}"                                   # answer_is_first
+        assert [len(fakes[f"p{i}"].calls) for i in range(n)] == [1] * (first + 1) + [0] * (n - first - 1)
+        assert len(a.tried) <= n                                           # skipped_le
+
+
+def test_free_filter_reads_price_and_availability():
+    from types import SimpleNamespace as NS
+    from router import _free
+    mk_ = lambda id, **extra: NS(id=id, model_extra=extra)
+    assert _free(mk_("x:free")) and _free(mk_("a", pricing={"input": 0, "output": 0})) and _free(mk_("b", pricing={"prompt": "0", "completion": "0"}))
+    assert not _free(mk_("c", pricing={"input": 0, "output": 0.5})) and not _free(mk_("d")) and not _free(mk_("e", pricing={"input": 0, "output": 0}, available=False))
+
+
+async def test_stream_survives_a_chunk_with_a_malformed_delta():
+    from types import SimpleNamespace as NS
+    from router import _stream
+    async def chunks():
+        for d in (NS(content="he"), [], None, NS(content="llo")):
+            yield NS(choices=[NS(delta=d, finish_reason=None)], usage=None)
+        yield NS(choices=[NS(delta=NS(content=None), finish_reason="stop")], usage=NS(total_tokens=4))
+    r = await _stream(chunks())
+    assert r.choices[0].message.content == "hello" and r.choices[0].finish_reason == "stop" and r.usage.total_tokens == 4
+
+
+async def test_only_and_exclude_limit_the_pool(monkeypatch):
+    fakes = {"alpha": Fake(["m"], ["from alpha"]), "beta": Fake(["m"], ["from beta"])}
+    r, _ = mk(monkeypatch, fakes, [PA, PB])
+    monkeypatch.setenv("OPENAPI_ONLY", "beta")
+    assert [p.name for p in r.configured()] == ["beta"] and (await r.ask("x")).provider == "beta"
+    monkeypatch.delenv("OPENAPI_ONLY")
+    monkeypatch.setenv("OPENAPI_EXCLUDE", "alpha")
+    assert [p.name for p in r.configured()] == ["beta"]
+
+
+async def test_paid_only_providers_come_after_every_free_one_even_with_a_better_model(monkeypatch):
+    rich = Provider("rich", "http://r", "T_RICH", ("gpt-5",), paid_only=True)
+    fakes = {"rich": Fake(["gpt-5-pro"], ["from rich"]), "alpha": Fake(["tiny-1b"], ["from alpha"])}
+    r, _ = mk(monkeypatch, fakes, [rich, PA])
+    assert [p.name for p, _ in await r._order([(rich, None), (PA, None)], "general", True)] == ["alpha", "rich"]
+    assert (await r.ask("x")).provider == "alpha" and not fakes["rich"].calls          # free first
+    import openai
+    fakes["alpha"].script = [openai.RateLimitError("slow", response=_resp(429), body=None)] * 3
+    assert (await r.ask("y")).provider == "rich"                                       # paid is the next one in line, not an error
+    monkeypatch.setenv("OPENAPI_FREE_ONLY", "1")
+    r2, _ = mk(monkeypatch, {"rich": Fake(["gpt-5-pro"], ["no"]), "alpha": Fake(["tiny-1b"], [openai.RateLimitError("slow", response=_resp(429), body=None)] * 3)}, [rich, PA])
+    assert [p.name for p, _ in await r2._order([(rich, None), (PA, None)], "general", False)][0] == "rich"   # free-only mode ranks by score alone: kept as it was

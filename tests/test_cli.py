@@ -33,11 +33,11 @@ def test_api_write_is_refused_with_exit_3_and_get_without_key_fails(monkeypatch)
 
 def test_dump_api_lists_every_command():
     names = {c["command"] for c in json.loads(run(openapi.app, ["dump-api"]).output)}
-    assert {"ask", "council", "api", "services", "obsidian search", "notion create", "coderabbit", "image", "jev", "serve"} <= names
+    assert {"ask", "council", "api", "services", "obsidian search", "notion create", "coderabbit", "image", "jev", "video", "blender", "gimp", "krita", "godot", "serve"} <= names
 
 
 def test_ask_json_and_stdin(monkeypatch):
-    async def fake(self, prompt, model="auto", system=None, max_tokens=None, temperature=None, task="general", paid=None):
+    async def fake(self, prompt, model="auto", system=None, max_tokens=None, temperature=None, task="general", paid=None, public=False):
         return openapi.Answer(prompt.upper(), "alpha", "m", 3)
     monkeypatch.setattr(openapi.Router, "ask", fake)
     r = run(openapi.app, ["ask", "-", "--json"], input="hello")

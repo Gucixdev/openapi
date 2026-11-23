@@ -29,7 +29,7 @@ REGIONAL = re.compile(r"_cn$|^(dashscope|moonshot|zai|hunyuan|volcengine|qianfan
 
 
 def path() -> Path:
-    return Path(os.environ.get("OPENAPI_CATALOG", Path(__file__).with_name("providers.json")))
+    return Path(os.environ.get("OPENAPI_CATALOG", Path(__file__).resolve().parent.parent / "providers.json"))
 
 
 def provider_tags(row: dict[str, Any]) -> list[str]:
@@ -147,15 +147,32 @@ def merge(old: list[dict[str, Any]], new: list[dict[str, Any]]) -> list[dict[str
     return [by[k] for k in sorted(by)]
 
 
+FIRST = ("name", "status", "tags", "base_url", "env", "signup", "note", "checked")    # what a reader looks for goes on top of each block
+
+
+def _j(v: Any) -> str:
+    return json.dumps(v, ensure_ascii=False, sort_keys=True)
+
+
 def dump(rows: list[dict[str, Any]], generated: str) -> str:
-    """Stable text: providers sorted by name, models by id, keys sorted, one level of indent - a refresh diffs only what changed."""
-    clean = []
+    """Stable, readable text: providers sorted by name, one block each, one key per line (name, status, tags, endpoint first, the rest sorted),
+    short lists on one line, the listed models one per line. Valid JSON; a refresh diffs only what changed."""
+    out = ["{", f' "schema": {SCHEMA},', f' "generated": {_j(generated)},', ' "providers": [']
+    blocks = []
     for r in sorted(rows, key=lambda r: r["name"]):
-        r = dict(r)
-        if "listed" in r:
-            r["listed"] = sorted(r["listed"], key=lambda m: m["id"])
-        clean.append(r)
-    return json.dumps({"schema": SCHEMA, "generated": generated, "providers": clean}, indent=1, sort_keys=True, ensure_ascii=False) + "\n"
+        keys = [k for k in FIRST if k in r] + sorted(k for k in r if k not in FIRST)
+        lines = []
+        for k in keys:
+            v = r[k]
+            if k == "listed" and v:
+                ms = [_j(m) for m in sorted(v, key=lambda m: m["id"])]
+                lines.append(f'   "listed": [\n' + ",\n".join("    " + m for m in ms) + "\n   ]")
+            else:
+                lines.append(f"   {_j(k)}: {_j(v)}")
+        blocks.append("  {\n" + ",\n".join(lines) + "\n  }")
+    out.append(",\n".join(blocks))
+    out += [" ]", "}"]
+    return "\n".join(out) + "\n"
 
 
 def write(rows: list[dict[str, Any]], generated: str, p: Path | None = None) -> Path:

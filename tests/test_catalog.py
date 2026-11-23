@@ -127,3 +127,25 @@ async def test_build_catalog_statuses(monkeypatch):
     assert rows["loc"]["status"] == "down"
     assert all("checked" in x and x["tags"] for x in rows.values())
     assert "s3cr3t-value-123" not in json.dumps(rows)                       # a key never reaches the catalog
+
+
+def test_dump_is_readable_valid_json_and_round_trips():
+    rows = [{"name": "b", "status": "ok", "tags": ["free", "fast"], "env": "B_KEY", "base_url": "http://b", "models": [], "listed": [{"id": "z"}, {"id": "a", "tags": ["free"]}]},
+            {"name": "a", "status": "needs-key", "tags": [], "env": "A_KEY", "base_url": "http://a", "free_only": False}]
+    text = catalog.dump(rows, "2026-11-15")
+    data = json.loads(text)
+    assert [r["name"] for r in data["providers"]] == ["a", "b"] and [m["id"] for m in data["providers"][1]["listed"]] == ["a", "z"]
+    assert '   "tags": ["free", "fast"],' in text and text.index('"name": "b"') < text.index('"status": "ok"') < text.index('"base_url": "http://b"')
+    assert catalog.dump(data["providers"], "2026-11-15") == text                  # stable: a refresh diffs only what changed
+
+
+def test_keys_example_one_line_per_key_grouped():
+    import wizard
+    P = lambda n, e, s: type("P", (), {"name": n, "env": e, "signup": s})()
+    text = wizard.keys_example([P("zed", "ZED_KEY", "https://z"), P("loc", "", "local: start it"), P("grq", "GROQ_API_KEY", "https://g"), P("dup", "GROQ_API_KEY", "https://d")],
+                               {"grq": ["free"], "zed": ["credits-or-paid"], "loc": ["local"]})
+    lines = text.splitlines()
+    assert any(l.startswith("GROQ_API_KEY=") and l.endswith("# grq: https://g") for l in lines)
+    assert sum(l.startswith("GROQ_API_KEY=") for l in lines) == 1                  # a shared variable once
+    assert lines.index("# loc: local: start it") < next(i for i, l in enumerate(lines) if l.startswith("GROQ_API_KEY=")) < next(i for i, l in enumerate(lines) if l.startswith("ZED_KEY="))
+    assert "NOTION_API_KEY=" in text and "OBSIDIAN_VAULT=" in text
