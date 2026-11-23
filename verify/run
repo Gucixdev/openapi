@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# verify/run - everything that backs the claims: Lean proofs, the test suite, the AMPL signup advisor. No arguments.
+set -euo pipefail
+cd "$(dirname "$0")"
+LEAN="$(command -v lean || echo "$HOME/.elan/bin/lean")"
+for f in Failover Translate; do
+  out="$("$LEAN" "$f.lean")"
+  if grep -q "sorry" <<<"$out"; then echo "FAIL $f: sorry"; exit 1; fi
+  echo "lean  $f.lean  ok  ($(grep -c 'depends on axioms' <<<"$out") theorems, axioms: $(grep -o '\[[^]]*\]' <<<"$out" | sort -u | tr '\n' ' '))"
+done
+(cd .. && .venv/bin/python -m pytest -q 2>&1 | tail -1)
+if [ ! -x .venv/bin/python ]; then
+  uv venv -q .venv
+  uv pip install -q --python .venv/bin/python amplpy
+  uv pip install -q --python .venv/bin/python --index-url https://pypi.ampl.com --extra-index-url https://pypi.org/simple ampl_module_base ampl_module_highs
+fi
+.venv/bin/python signup.py

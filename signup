@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# signup - get the next free API keys, one provider at a time.
+#
+# For every free provider you hold no key for (direct ones first, then regional, gateways last) it opens the signup page in your
+# default browser (where you are already logged in with Google/GitHub, one click), then asks for the key with a hidden prompt and
+# stores it (src/openapi.py add). Enter at the prompt skips that provider, q quits. Nothing is signed up for by the script itself.
+#
+#   ./signup            the next 5 providers          N=10 ./signup     the next 10
+#   DRY=1 ./signup      only list them, open nothing  ./signup -h       this text
+set -euo pipefail
+case "${1:-}" in -h|--help) sed -n '2,/^set /{/^set /d;s/^# \{0,1\}//;p}' "$0"; exit 0;; esac
+here=$(cd "$(dirname "$0")" && pwd)
+keys=${OPENAPI_KEYS:-$HOME/.config/openapi/keys.env}
+n=${N:-5}
+command -v jq >/dev/null || { echo "signup: jq is needed" >&2; exit 1; }
+
+held=$(sed -n 's/^\(export \)\{0,1\}\([A-Za-z0-9_]*\)=.\+/\2/p' "$keys" 2>/dev/null || true)
+# name <TAB> kind <TAB> url, for free providers with an env var, no key in the file or the environment, endpoint not dead
+list=$(jq -r '.providers[] | select(.tags | index("free")) | select(.env != "") | select(.status | test("^(unreachable|down)") | not)
+    | [.name, .env, (if (.tags|index("gateway")) then "3gateway" elif (.tags|index("regional")) then "2regional" else "1direct" end), (.signup // .base_url)] | @tsv' "$here/providers.json" |
+  while IFS=$'\t' read -r name env kind url; do
+    grep -qx "$env" <<<"$held" && continue
+    [ -n "${!env:-}" ] && continue
+    printf '%s\t%s\t%s\n' "$kind" "$name" "$url"
+  done | sort -s -t$'\t' -k1,1 | head -n "$n")
+
+[ -n "$list" ] || { echo "signup: nothing left, every free provider has a key"; exit 0; }
+echo "$list" | awk -F'\t' '{printf "  %-14s %-9s %s\n", $2, substr($1,2), $3}'
+[ -z "${DRY:-}" ] || exit 0
+
+got=0
+while IFS=$'\t' read -r kind name url; do
+  printf '\n== %s (%s)\n' "$name" "${kind#?}"
+  case "$url" in *" "*) echo "note: ${url#* }";; esac
+  case "$url" in http*) xdg-open "${url%% *}" >/dev/null 2>&1 || echo "open by hand: ${url%% *}";; *) echo "no page known, see: $url";; esac
+  read -r -p "ready? Enter = paste the key, s = skip, q = quit: " a </dev/tty
+  case "$a" in q) break;; s) continue;; esac
+  if "$here/src/openapi.py" add "$name"; then got=$((got + 1)); fi
+done <<<"$list"
+echo; echo "$got key(s) added"
+[ "$got" -eq 0 ] || "$here/src/openapi.py" stats | tail -n 3 | cut -c1-200
